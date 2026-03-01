@@ -2,6 +2,19 @@
 
 A static web app for the **Wintech – Amiral Project** attendance system.
 
+## 🌐 View Online
+
+**Live site → [https://wintechksa.github.io/OnlineAttendance/](https://wintechksa.github.io/OnlineAttendance/)**
+
+From the landing page you can open either attendance tracker (each is a separate GitHub Pages app):
+
+| Button | Link |
+|---|---|
+| **WINTECH** | [https://wintechksa.github.io/AttendanceV2.0/](https://wintechksa.github.io/AttendanceV2.0/) |
+| **RENTAL** | [https://wintechksa.github.io/Rental/](https://wintechksa.github.io/Rental/) |
+
+> The site is hosted on **GitHub Pages** and updates automatically whenever changes are pushed to the `main` branch. No installation or login is required — just open the link in any browser.
+
 ## Pages
 
 | File | Description |
