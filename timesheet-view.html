@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Timesheet</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; margin: 0; background: #f3f5f8; color: #111827; }
+    .container { max-width: 1020px; margin: 24px auto; padding: 0 16px; }
+    .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 18px; margin-bottom: 14px; }
+    .topbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .logo { width: 38px; height: 38px; object-fit: contain; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+    @media (max-width: 760px) { .row, .row-3 { grid-template-columns: 1fr; } }
+    label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; }
+    input, select, textarea { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; margin-bottom: 8px; }
+    textarea { min-height: 90px; resize: vertical; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    button { border: 0; border-radius: 8px; padding: 10px 14px; cursor: pointer; font-weight: 700; }
+    .btn-primary { background: #2563eb; color: #fff; }
+    .btn-secondary { background: #e5e7eb; color: #111827; }
+    .btn-danger { background: #dc2626; color: #fff; }
+    .msg { margin-top: 8px; font-size: 14px; }
+    .ok { color: #15803d; }
+    .err { color: #dc2626; }
+    .scroll { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    th, td { border: 1px solid #e5e7eb; padding: 8px; font-size: 13px; text-align: left; }
+    th { background: #f8fafc; }
+    .qr-box { text-align: center; }
+    .qr-box img { width: 160px; height: 160px; border: 1px solid #e5e7eb; border-radius: 8px; }
+    @media print {
+      .no-print { display: none !important; }
+      .container { margin: 0; max-width: 100%; }
+      body { background: #fff; }
+    }
+  </style>
+</head>
+<body data-oa-page="timesheet-view">
+  <div id="oa-shared-header"></div>
+  <div class="container">
+    <div class="card no-print">
+      <div class="topbar">
+        <div class="brand">
+          <img class="logo" src="https://raw.githubusercontent.com/wintechksa/OnlineAttendance/refs/heads/main/WintechIcon.png" alt="Company Logo" />
+          <h1 id="welcome" style="margin:0;">My Timesheet</h1>
+        </div>
+        <div class="actions">
+          <button id="downloadPdfBtn" class="btn-secondary" type="button">Download PDF</button>
+          <button id="printBtn" class="btn-secondary" type="button">Print</button>
+          <button id="logoutBtn" class="btn-danger" type="button">Logout</button>
+        </div>
+      </div>
+      <div id="message" class="msg"></div>
+    </div>
+
+    <!-- Profile card removed: use employee-profile.html for profile management -->
+
+    <!-- Feedback section removed; profile/feedback handled separately if needed -->
+
+    <!-- Share links removed -->
+
+    <div class="card">
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Clock In</th>
+              <th>Clock Out</th>
+              <th>Hours</th>
+              <th>Status</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody id="timesheetBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="oa-shared-footer"></div>
+
+  <script src="./shared-layout.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <script>
+    const SESSION_KEY = 'oa_supabase_session';
+    const CONFIG_KEY = 'oa_supabase_config';
+    const DEFAULT_SUPABASE_URL = '';
+    const DEFAULT_SUPABASE_ANON_KEY = '';
+    let lastRows = [];
+    let currentProfile = null;
+    let refreshTimer = null;
+
+    function setMessage(text, isError) {
+      const el = document.getElementById('message');
+      el.textContent = text || '';
+      el.className = 'msg ' + (isError ? 'err' : 'ok');
+    }
+
+    // feedback UI removed
+
+    function getSession() {
+      try {
+        return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function saveSession(session) {
+      localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    }
+
+    function getConfig() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(CONFIG_KEY) || 'null') || {};
+        return {
+          supabaseUrl: saved.supabaseUrl || DEFAULT_SUPABASE_URL,
+          supabaseAnonKey: saved.supabaseAnonKey || DEFAULT_SUPABASE_ANON_KEY
+        };
+      } catch (_) {
+        return {
+          supabaseUrl: DEFAULT_SUPABASE_URL,
+          supabaseAnonKey: DEFAULT_SUPABASE_ANON_KEY
+        };
+      }
+    }
+
+    function getSupabaseOrThrow() {
+      const cfg = getConfig();
+      if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) {
+        throw new Error('Supabase settings are missing. Ask admin to save settings in admin page.');
+      }
+      return window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+    }
+
+    function formatHHMM(value) {
+      if (!value) return '';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) {
+        const str = String(value);
+        const m = str.match(/(\d{2}:\d{2})/);
+        return m ? m[1] : str;
+      }
+      return String(date.getHours()).padStart(2, '0') + ':' + String(date.getMinutes()).padStart(2, '0');
+    }
+
+    function renderRows(rows) {
+      const body = document.getElementById('timesheetBody');
+      body.innerHTML = '';
+      rows.forEach(function (r) {
+        const tr = document.createElement('tr');
+        const cells = [
+          formatHHMM(r.clock_in),
+          formatHHMM(r.clock_out),
+          r.hours == null ? '' : r.hours,
+          r.status || '',
+          r.notes || ''
+        ];
+        cells.forEach(function (v) {
+          const td = document.createElement('td');
+          td.textContent = String(v);
+          tr.appendChild(td);
+        });
+        body.appendChild(tr);
+      });
+    }
+
+    // Profile management removed from this page; use employee-profile.html instead.
+
+    async function loadTimesheet() {
+      try {
+        const session = getSession();
+        if (!session || !session.employeeNumber) {
+          window.location.href = './login.html';
+          return;
+        }
+
+        const supabase = getSupabaseOrThrow();
+        const query = supabase
+          .from('employee_timesheets')
+          .select('employee_number,full_name,work_date,clock_in,clock_out,hours,status,notes')
+          .eq('employee_number', session.employeeNumber)
+          .order('work_date', { ascending: false });
+
+        const result = await query;
+        if (result.error) throw result.error;
+
+        lastRows = result.data || [];
+        renderRows(lastRows);
+        setMessage(lastRows.length ? ('Loaded ' + lastRows.length + ' records.') : 'No records found.', false);
+      } catch (err) {
+        setMessage(err.message || 'Failed to load timesheet.', true);
+      }
+    }
+
+    // feedback submission removed
+
+    // sharing UI removed
+
+    function downloadPdf() {
+      if (!lastRows.length) {
+        setMessage('No data to export.', true);
+        return;
+      }
+      const session = getSession() || {};
+      const jsPDF = window.jspdf.jsPDF;
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+      const now = new Date();
+      const employeeLabel = session.fullName || session.employeeNumber || 'Employee';
+
+      doc.setFontSize(14);
+      doc.text('Employee Timesheet', 40, 40);
+      doc.setFontSize(10);
+      doc.text('Employee: ' + employeeLabel, 40, 58);
+      doc.text('Generated: ' + now.toLocaleString(), 40, 74);
+
+      const body = lastRows.map(function (r) {
+        return [
+          formatHHMM(r.clock_in),
+          formatHHMM(r.clock_out),
+          r.hours == null ? '' : String(r.hours),
+          r.status || '',
+          r.notes || ''
+        ];
+      });
+
+      if (typeof doc.autoTable === 'function') {
+        doc.autoTable({
+          startY: 90,
+          head: [['Clock In', 'Clock Out', 'Hours', 'Status', 'Notes']],
+          body: body,
+          styles: { fontSize: 9, cellPadding: 4 },
+          headStyles: { fillColor: [37, 99, 235] }
+        });
+      }
+
+      doc.save('timesheet_' + (session.employeeNumber || 'employee') + '_' + now.toISOString().slice(0, 10) + '.pdf');
+      setMessage('PDF downloaded.', false);
+    }
+
+    // profile save removed; profile page handled at employee-profile.html
+
+    // feedback submit removed
+    document.getElementById('printBtn').addEventListener('click', function () { window.print(); });
+    document.getElementById('downloadPdfBtn').addEventListener('click', downloadPdf);
+    document.getElementById('logoutBtn').addEventListener('click', function () {
+      localStorage.removeItem(SESSION_KEY);
+      window.location.href = './index.html';
+    });
+
+    (async function init() {
+      const session = getSession();
+      if (!session) {
+        window.location.href = './login.html';
+        return;
+      }
+      document.getElementById('welcome').textContent = 'Welcome, ' + (session.fullName || session.employeeNumber);
+
+      // profile loaded on separate page; skip local profile load
+
+      await loadTimesheet();
+
+      if (refreshTimer) clearInterval(refreshTimer);
+      refreshTimer = setInterval(loadTimesheet, 60000);
+    })();
+  </script>
+</body>
+</html>

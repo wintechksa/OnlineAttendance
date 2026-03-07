@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Upload Timesheet CSV</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; background: #f3f5f8; color: #111827; }
+    .container { max-width: 860px; margin: 24px auto; padding: 0 16px; }
+    .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+    h1 { margin-top: 0; }
+    label { display: block; margin-bottom: 6px; font-weight: 600; }
+    input[type="text"], input[type="file"] { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; margin-bottom: 10px; }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    button { border: 0; border-radius: 8px; padding: 10px 14px; cursor: pointer; font-weight: 600; }
+    .btn-primary { background: #2563eb; color: #fff; }
+    .btn-secondary { background: #e5e7eb; color: #111827; }
+    .msg { margin-top: 8px; font-size: 14px; }
+    .ok { color: #15803d; }
+    .err { color: #dc2626; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #e5e7eb; padding: 8px; font-size: 13px; text-align: left; }
+    .scroll { overflow-x: auto; }
+  </style>
+</head>
+<body data-oa-page="upload-timesheet">
+  <div id="oa-shared-header"></div>
+  <div class="container">
+    <div class="card">
+      <h1>Timesheet CSV Upload (Supabase)</h1>
+      <label for="supabaseUrl">Supabase URL</label>
+      <input id="supabaseUrl" type="text" placeholder="https://xxxxx.supabase.co" />
+
+      <label for="supabaseAnonKey">Supabase Anon Key</label>
+      <input id="supabaseAnonKey" type="text" placeholder="eyJhbGci..." />
+
+      <label for="csvFile">CSV File</label>
+      <input id="csvFile" type="file" accept=".csv,text/csv" />
+
+      <div class="actions">
+        <button id="previewBtn" class="btn-secondary" type="button">Preview CSV</button>
+        <button id="uploadBtn" class="btn-primary" type="button">Upload to Supabase</button>
+      </div>
+      <div id="message" class="msg"></div>
+    </div>
+
+    <div class="card">
+      <h2>Preview</h2>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>employee_number</th>
+              <th>full_name</th>
+              <th>work_date</th>
+              <th>clock_in</th>
+              <th>clock_out</th>
+              <th>hours</th>
+              <th>status</th>
+              <th>notes</th>
+            </tr>
+          </thead>
+          <tbody id="previewBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="oa-shared-footer"></div>
+  <script src="./shared-layout.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    let parsedRows = [];
+
+    function setMessage(text, isError) {
+      const el = document.getElementById('message');
+      el.textContent = text || '';
+      el.className = 'msg ' + (isError ? 'err' : 'ok');
+    }
+
+    function toNumberOrNull(value) {
+      if (value == null || value === '') return null;
+      const n = Number(value);
+      return Number.isFinite(n) ? n : null;
+    }
+
+    function formatHHMM(value) {
+      if (!value) return '';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return String(value);
+      const hh = String(date.getHours()).padStart(2, '0');
+      const mm = String(date.getMinutes()).padStart(2, '0');
+      return hh + ':' + mm;
+    }
+
+    function calculateHours(clockIn, clockOut) {
+      if (!clockIn || !clockOut) return null;
+      const inDate = new Date(clockIn);
+      const outDate = new Date(clockOut);
+      if (Number.isNaN(inDate.getTime()) || Number.isNaN(outDate.getTime())) return null;
+      const hours = (outDate.getTime() - inDate.getTime()) / (1000 * 60 * 60);
+      if (!Number.isFinite(hours) || hours < 0) return null;
+      return Math.round(hours * 100) / 100;
+    }
+
+    function normalizeTimestamp(value, workDate) {
+      const raw = String(value || '').trim();
+      if (!raw) return null;
+
+      if (!workDate) {
+        return raw;
+      }
+
+      if (raw.includes('T') || raw.includes('-')) {
+        return raw;
+      }
+
+      const amPmMatch = raw.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)$/i);
+      if (amPmMatch) {
+        let hour = Number(amPmMatch[1]);
+        const minute = amPmMatch[2];
+        const second = amPmMatch[3] || '00';
+        const meridiem = String(amPmMatch[4]).toUpperCase();
+        if (meridiem === 'PM' && hour < 12) hour += 12;
+        if (meridiem === 'AM' && hour === 12) hour = 0;
+        const hh = String(hour).padStart(2, '0');
+        return workDate + 'T' + hh + ':' + minute + ':' + second;
+      }
+
+      const timeMatch = raw.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+      if (timeMatch) {
+        const hh = String(Number(timeMatch[1])).padStart(2, '0');
+        const mm = timeMatch[2];
+        const ss = timeMatch[3] || '00';
+        return workDate + 'T' + hh + ':' + mm + ':' + ss;
+      }
+
+      return raw;
+    }
+
+    function parseCsv(text) {
+      const lines = text.replace(/\r/g, '').split('\n').filter(Boolean);
+      if (!lines.length) return [];
+      const headers = lines[0].split(',').map(h => h.trim());
+      const rows = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(',');
+        const row = {};
+        headers.forEach((h, idx) => {
+          row[h] = (cols[idx] || '').trim();
+        });
+        const workDate = row.work_date ? String(row.work_date).trim() : '';
+        const clockIn = normalizeTimestamp(row.clock_in, workDate);
+        const clockOut = normalizeTimestamp(row.clock_out, workDate);
+        const inputHours = toNumberOrNull(row.hours);
+        const autoHours = calculateHours(clockIn, clockOut);
+
+        rows.push({
+          employee_number: row.employee_number,
+          full_name: row.full_name || null,
+          work_date: workDate,
+          clock_in: clockIn,
+          clock_out: clockOut,
+          hours: inputHours == null ? autoHours : inputHours,
+          status: row.status || 'present',
+          notes: row.notes || null
+        });
+      }
+      return rows;
+    }
+
+    function renderPreview(rows) {
+      const body = document.getElementById('previewBody');
+      body.innerHTML = '';
+      rows.slice(0, 200).forEach(r => {
+        const tr = document.createElement('tr');
+        const cells = [
+          r.employee_number, r.full_name, r.work_date, r.clock_in,
+          r.clock_out, r.hours, r.status, r.notes
+        ];
+        cells.forEach((v, index) => {
+          const td = document.createElement('td');
+          if (index === 3 || index === 4) {
+            td.textContent = v ? formatHHMM(v) : '';
+          } else {
+            td.textContent = v == null ? '' : String(v);
+          }
+          tr.appendChild(td);
+        });
+        body.appendChild(tr);
+      });
+    }
+
+    async function getCsvText() {
+      const file = document.getElementById('csvFile').files[0];
+      if (!file) throw new Error('Please choose a CSV file.');
+      return await file.text();
+    }
+
+    document.getElementById('previewBtn').addEventListener('click', async () => {
+      try {
+        const csvText = await getCsvText();
+        parsedRows = parseCsv(csvText);
+        if (!parsedRows.length) throw new Error('CSV has no data rows.');
+        renderPreview(parsedRows);
+        setMessage('Preview ready: ' + parsedRows.length + ' rows.', false);
+      } catch (err) {
+        setMessage(err.message || 'Failed to preview CSV.', true);
+      }
+    });
+
+    document.getElementById('uploadBtn').addEventListener('click', async () => {
+      try {
+        const supabaseUrl = document.getElementById('supabaseUrl').value.trim();
+        const supabaseAnonKey = document.getElementById('supabaseAnonKey').value.trim();
+        if (!supabaseUrl || !supabaseAnonKey) throw new Error('Supabase URL and Anon Key are required.');
+
+        if (!parsedRows.length) {
+          const csvText = await getCsvText();
+          parsedRows = parseCsv(csvText);
+        }
+        if (!parsedRows.length) throw new Error('CSV has no data rows.');
+
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
+
+        const { error } = await supabase
+          .from('employee_timesheets')
+          .upsert(parsedRows, { onConflict: 'employee_number,work_date' });
+
+        if (error) throw error;
+        setMessage('Upload complete: ' + parsedRows.length + ' rows upserted.', false);
+      } catch (err) {
+        setMessage(err.message || 'Upload failed.', true);
+      }
+    });
+  </script>
+</body>
+</html>

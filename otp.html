@@ -1,0 +1,69 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <style>
+      :root{--accent:#10b981;--bg:#f6f8fb}
+      body{margin:0;padding:0;background:var(--bg);font-family:Inter,system-ui,Segoe UI,Arial,sans-serif;color:#0f172a}
+      .email-wrap{max-width:520px;margin:28px auto;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:20px;box-shadow:0 8px 30px rgba(15,23,42,0.04)}
+      .brand{font-weight:700;font-size:18px;color:#111827}
+      .lead{font-size:15px;color:#334155;margin:0 0 18px}
+      .otp-box{background:#f1f5f9;border-radius:10px;padding:18px;margin:10px 0 20px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.8);text-align:center}
+      .otp{font-size:28px;letter-spacing:4px;font-weight:700;color:var(--primary)}
+      .hint{font-size:13px;color:#64748b;margin-top:8px}
+      .btn{display:inline-block;padding:10px 16px;background:var(--accent);color:#fff;border-radius:8px;text-decoration:none;font-weight:700;margin-top:16px}
+      .footer{padding:18px 24px;background:#f8fafc;font-size:13px;color:#64748b;text-align:center}
+      .preheader{display:none;visibility:hidden;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden}
+      @media (max-width:420px){.otp{font-size:22px}}
+      /* Outlook-specific fix for images */
+      @media all {
+        .logo-img{display:block;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic}
+      }
+    </style>
+    <!--[if mso]>
+      <style>
+        .brand{font-family:Arial, sans-serif !important}
+        .logo-img{width:56px !important;height:auto !important}
+      </style>
+    <![endif]-->
+  </head>
+  <body>
+    <!-- Preheader: shown in inbox preview -->
+    <span class="preheader">Your ${appName} one-time passcode is ${otp} — expires in 2 minutes.</span>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        <td align="center">
+          <table role="presentation" class="email-wrap" width="520" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:520px;background:#fff;border-radius:10px;padding:20px;">
+            <!-- Header: centered small logo + title -->
+            <tr>
+              <td style="padding:0;text-align:center;">
+                <img src="https://drive.usercontent.google.com/download?id=1BxCzsdAWu7C0KwIgxmkySdRgYCRYdE-8&export=view&authuser=0" alt="WINTECH" width="56" class="logo-img" style="width:56px;height:auto;display:block;margin:0 auto;border-radius:8px;background:#fff;padding:6px;border:0;outline:none;text-decoration:none;">
+                <div style="margin-top:10px;font-weight:700;font-size:18px;color:#111827">${appName}</div>
+              </td>
+            </tr>
+
+            <!-- Body -->
+            <tr>
+              <td style="padding:28px 24px;">
+                <p class="lead">Use the one-time passcode below to complete your action. This code will expire in 2 minutes.</p>
+                <div class="otp-box">
+                  <div class="otp">${otp}</div>
+                </div>
+                <div class="hint">If you didn't request this, please ignore this email or contact support.</div>
+
+                <!-- no action link (removed per request) -->
+              </td>
+            </tr>
+
+            <!-- Footer -->
+            <tr>
+              <td class="footer">Online Attendance. If you need help, reply to this email.</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

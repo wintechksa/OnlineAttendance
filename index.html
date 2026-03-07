@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -9,43 +8,25 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="icon" type="image/x-icon" href="https://raw.githubusercontent.com/wintechksa/OnlineAttendance/refs/heads/main/WINTECH.ico">
   <style>
-    * {
-      box-sizing: border-box;
-    }
-
+    * { box-sizing: border-box; }
     body {
       border: 0;
       margin: 0;
       background-color: #e7e7e7;
-
-      /* font-family: Montserrat, 'Poppins', sans-serif;
-      margin: 0;
-      padding: 0;
-      height: 100vh;
-      background: linear-gradient(to bottom right, #2e3b4e, #173352);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      overflow: hidden; */
-    }
-    .maincontainer{
-      /* border: solid red; */
-       position: relative;
-
       font-family: Montserrat, 'Poppins', sans-serif;
+    }
+    .maincontainer {
+      position: relative;
       margin: auto;
       padding: 0;
       height: 100vh;
-      /* width: 500px; */
       width: 80%;
       background: linear-gradient(to bottom right, #2e3b4e, #173352);
       display: flex;
       justify-content: center;
       align-items: center;
       overflow: hidden;
-
     }
-
     .container {
       backdrop-filter: blur(14px);
       background: rgba(255, 255, 255, 0.12);
@@ -53,45 +34,38 @@
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
       border: 1px solid rgba(255, 255, 255, 0.3);
       padding: 40px 30px;
-      /* width: 90%; */
       max-width: 500px;
       text-align: center;
       z-index: 2;
     }
-
     img.logo {
       max-width: 120px;
       margin-bottom: 20px;
     }
-
-    .project{
-        color: white;
-         font-size: 12px;
-         line-height: 20px;
-         margin-bottom: 25px;
-       }
+    .project {
+      color: white;
+      font-size: 12px;
+      line-height: 20px;
+      margin-bottom: 25px;
+    }
     .tagline {
       font-size: 20px;
       font-style: italic;
-      /* font-family: garamond; */
       color: #91d5ff;
       margin-bottom: 10px;
       text-shadow: 1px 1px 3px rgba(0,0,0,0.3);
     }
-
     h1 {
       font-size: 28px;
       color: #ffffff;
       margin-bottom: 50px;
       text-shadow: 1px 1px 4px rgba(0,0,0,0.4);
     }
-
     .btn {
       display: block;
       align-items: center;
       justify-content: center;
       padding: 12px 22px;
-      /* margin: 10px; */
       font-size: 20px;
       font-weight: 700;
       letter-spacing: 1px;
@@ -102,57 +76,24 @@
       text-decoration: none;
       transition: background 0.3s ease, transform 0.2s ease;
     }
-
     .btn:hover {
-      /* background: linear-gradient(to right,  #40b0e0,#0073cf); */
-       background: linear-gradient(to right,  #fafafa,#d2e4f3);
-       color: #1A48A2;
-       transform: scale(1.02);
+      background: linear-gradient(to right, #fafafa, #d2e4f3);
+      color: #1A48A2;
+      transform: scale(1.02);
     }
-
-    .btn i {
-      margin-right: 8px;
-      /* font-weight: normal; */
-    }
-
+    .btn i { margin-right: 8px; }
     footer {
       margin-top: 30px;
       font-size: 14px;
       color: #cccccc;
       text-shadow: 0 0 3px rgba(0,0,0,0.5);
       line-height: 20px;
-
     }
-
     .footer-logo {
       max-width: 40px;
       margin-bottom: 10px;
-      
-      /* filter: invert(1); */
     }
-
-    @media (max-width: 600px) {
-      .maincontainer{
-        width: 100%;
-      }
-      .container {
-        padding: 25px 20px;
-         /* max-width: 100%; */
-      }
-
-      h1 {
-        font-size: 22px;
-      }
-
-      .btn {
-        width: 100%;
-        margin: 10px 0;
-      }
-    }
-
-    /* Animated Light Blue Circles */
     .background-circles {
-      /* position: fixed; */
       position: absolute;
       top: 0;
       left: 0;
@@ -161,7 +102,6 @@
       overflow: hidden;
       z-index: 1;
     }
-
     .circle {
       position: absolute;
       border-radius: 50%;
@@ -169,83 +109,52 @@
       backdrop-filter: blur(10px);
       animation: floatFast 6s infinite ease-in-out alternate;
     }
-
-    .circle1 {
-      width: 100px;
-      height: 100px;
-      top: 10%;
-      left: 15%;
-      /* border: solid red; */
-    }
-
-    .circle2 {
-      width: 180px;
-      height: 180px;
-      bottom: 5%;
-      right: 20%;
-      /* border: solid red; */
-    }
-
-    .circle3 {
-      width: 140px;
-      height: 140px;
-      top: 55%;
-      left: 45%;
-      /* border: solid red; */
-    }
-
+    .circle1 { width: 100px; height: 100px; top: 10%; left: 15%; }
+    .circle2 { width: 180px; height: 180px; bottom: 5%; right: 20%; }
+    .circle3 { width: 140px; height: 140px; top: 55%; left: 45%; }
     @keyframes floatFast {
       0% { transform: translateY(0) scale(1); }
       100% { transform: translateY(-60px) scale(1.2); }
     }
+    @media (max-width: 600px) {
+      .maincontainer { width: 100%; }
+      .container { padding: 25px 20px; }
+      h1 { font-size: 22px; }
+      .btn { width: 100%; margin: 10px 0; }
+    }
   </style>
 </head>
 <body>
-<div class="maincontainer">
-  <!-- Background Circles -->
-   <div class="background-circles">
-    <div class="circle circle1"></div>
-    <div class="circle circle2"></div>
-    <div class="circle circle3"></div>
-  </div>
+  <div class="maincontainer">
+    <div class="background-circles">
+      <div class="circle circle1"></div>
+      <div class="circle circle2"></div>
+      <div class="circle circle3"></div>
+    </div>
 
-  <div class="container">
-    <!-- https://1drv.ms/i/c/85b471aee3566fcc/IQRRPD7yWIUPS6EgUKn59DxFAU9H-D8ANXQ7VuG2waXQU5o?width=897&height=486 -->
-<!--    "https://1drv.ms/i/c/85b471aee3566fcc/IQTrGukt1sc_T7YafOpNDelLAe6f-VxjsQvTbWyGOiD1zMI?width=329&height=187" -->
-    <img src="https://raw.githubusercontent.com/wintechksa/OnlineAttendance/refs/heads/main/WintechIcon.png"  alt="Wintech Logo" class="logo" />
-    <div class="tagline">Welding Innovation Technology</div>
-    <div class="project">Amiral Project Package 4 
-        <br> Utilities, Interconnecting and Flare Unit
+    <div class="container">
+      <img src="https://raw.githubusercontent.com/wintechksa/OnlineAttendance/refs/heads/main/WintechIcon.png" alt="Wintech Logo" class="logo" />
+      <div class="tagline">Welding Innovation Technology</div>
+      <div class="project">Amiral Project Package 4
+        <br>Utilities, Interconnecting and Flare Unit
         <br>Kingdom of Saudi Arabia</div>
 
-    <h1>Online Attendance Tracker</h1>
+      <h1>Online Attendance Tracker</h1>
 
-    <a class="btn" href="https://wintechksa.github.io/AttendanceV2.0/" target="_blank">
-      <!-- <i class="fas fa-user-check"></i> WINTECH -->
-       <i class="fas fa-user-check"></i> WINTECH 
-    </a>
-    <br>
-    <a class="btn" href="https://wintechksa.github.io/Rental/" target="_blank">
-      <i class="fas fa-user-clock"></i> RENTAL
-    </a>
-
-<br><br><br><br>
-    <footer>
-      <img src="https://lh3.googleusercontent.com/ogw/AOh-ky0Sm83Ih6ADLztQWiHscyi0y3KNLdxAuFpG_n56DQ=s32-c-mo" alt="Wintech Footer Logo" class="footer-logo" />
       <div>
-        Maynard M. Perey&nbsp;|&nbsp;매날드 페레이<br>pereymnrd24@gmail.com
+        <a class="btn" href="./login.html">
+          <i class="fas fa-user-check"></i> LOGIN
+        </a>
       </div>
-    </footer>
-  </div>
+
+      <br><br><br><br>
+      <footer>
+        <img src="https://lh3.googleusercontent.com/ogw/AOh-ky0Sm83Ih6ADLztQWiHscyi0y3KNLdxAuFpG_n56DQ=s32-c-mo" alt="Wintech Footer Logo" class="footer-logo" />
+        <div>
+          Maynard M. Perey&nbsp;|&nbsp;매날드 페레이<br>pereymnrd24@gmail.com
+        </div>
+      </footer>
+    </div>
   </div>
 </body>
 </html>
-
-
-
-
-
-
-
-
-

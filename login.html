@@ -1,0 +1,1120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: #eceff3;
+        color: #111827;
+        position: relative;
+        overflow-x: hidden;
+      }
+      .container {
+        max-width: 430px;
+        margin: 36px auto;
+        padding: 0 16px;
+        position: relative;
+        z-index: 1;
+      }
+      .card {
+        background: linear-gradient(
+          145deg,
+          rgba(255, 255, 255, 0.46) 0%,
+          rgba(255, 255, 255, 0.24) 100%
+        );
+        border: 1px solid rgba(255, 255, 255, 0.62);
+        border-radius: 16px;
+        padding: 26px 24px;
+        box-shadow:
+          0 18px 42px rgba(30, 64, 175, 0.18),
+          inset 0 1px 0 rgba(255, 255, 255, 0.5);
+        backdrop-filter: blur(20px) saturate(140%);
+        -webkit-backdrop-filter: blur(20px) saturate(140%);
+      }
+      .face.card {
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+      }
+      .field {
+        position: relative;
+        isolation: isolate;
+        padding-top: 18px;
+        margin-bottom: 18px;
+      }
+      label {
+        position: absolute;
+        left: 34px;
+        top: 28px;
+        font-weight: 600;
+        font-size: 12px;
+        color: #111827;
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(8px);
+        z-index: 3;
+        background: rgba(236, 239, 243, 0.92);
+        padding: 0 4px;
+        transition:
+          transform 0.2s ease,
+          opacity 0.2s ease,
+          color 0.2s ease;
+      }
+      .field.focused > label,
+      .field.has-value > label {
+        opacity: 1;
+        transform: translateY(-26px);
+      }
+      input {
+        width: 100%;
+        padding: 10px 0;
+        border: none;
+        border-bottom: 2px solid #cbd5e1;
+        border-radius: 0;
+        background: transparent;
+        transition:
+          border-color 0.22s ease,
+          box-shadow 0.22s ease;
+        animation: oaInputIn 0.45s ease both;
+        color: #0f172a;
+        height: 36px;
+      }
+      input:invalid:not(:placeholder-shown) {
+        border-bottom-color: #dc2626;
+      }
+      input:valid:not(:placeholder-shown) {
+        border-bottom-color: #16a34a;
+      }
+      input::placeholder {
+        color: #94a3b8;
+        transition: opacity 0.15s ease;
+      }
+      input:focus::placeholder {
+        opacity: 0;
+      }
+      input:focus {
+        outline: none;
+        border-bottom-color: #2563eb;
+        box-shadow: 0 8px 10px -10px rgba(37, 99, 235, 0.45);
+      }
+      .icon-field {
+        position: relative;
+        z-index: 1;
+      }
+      .icon-field .field-icon {
+        position: absolute;
+        left: 2px;
+        top: 52%;
+        transform: translateY(-50%);
+        color: #2563eb;
+        font-size: 14px;
+        z-index: 4;
+        pointer-events: none;
+      }
+      .icon-field input {
+        padding-left: 38px;
+        padding-right: 34px;
+        position: relative;
+        z-index: 1;
+      }
+      .toggle-eye {
+        position: absolute;
+        right: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        border: none;
+        background: transparent;
+        color: #64748b;
+        cursor: pointer;
+        padding: 4px;
+        transition: none;
+        z-index: 5;
+        pointer-events: auto;
+      }
+      .toggle-eye:hover {
+        transform: translateY(-50%);
+        box-shadow: none;
+        background: transparent;
+        color: #64748b;
+      }
+      .actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+        margin-top: 16px;
+        margin-bottom: 6px;
+      }
+      .login-actions {
+        margin-bottom: 10px;
+      }
+      .actions .btn-primary {
+        width: 100%;
+      }
+      button {
+        border: none;
+        border-radius: 10px;
+        padding: 11px 14px;
+        cursor: pointer;
+        font-weight: 700;
+        transition:
+          transform 0.2s ease,
+          box-shadow 0.2s ease,
+          background-color 0.2s ease;
+      }
+      button:hover {
+        transform: translateY(-1px);
+      }
+      .toggle-eye:hover,
+      .toggle-eye:focus {
+        transform: translateY(-50%);
+      }
+      .btn-primary {
+        background: #2563eb;
+        color: #fff;
+        box-shadow: 0 8px 18px rgba(37, 99, 235, 0.26);
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        min-height: 42px;
+      }
+      .btn-primary:hover {
+        background: #1d4ed8;
+        box-shadow: 0 12px 22px rgba(37, 99, 235, 0.34);
+      }
+      .btn-secondary {
+        background: #e5e7eb;
+        color: #111827;
+      }
+      .btn-secondary:hover {
+        background: #dbe1e8;
+      }
+      .message {
+        margin-top: 10px;
+        font-size: 14px;
+        min-height: 20px;
+      }
+      .error {
+        color: #dc2626;
+      }
+      .success {
+        color: #16a34a;
+      }
+      .flip-wrap {
+        perspective: 1200px;
+        position: relative;
+        overflow: hidden;
+        border-radius: 16px;
+        min-height: 520px;
+        transition: height 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        will-change: height;
+      }
+      .flip-card {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        min-height: 520px;
+        transform-style: preserve-3d;
+        transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        will-change: transform;
+      }
+      .face {
+        width: 100%;
+        position: absolute;
+        inset: 0;
+        backface-visibility: hidden;
+        -webkit-backface-visibility: hidden;
+      }
+      .face-inner {
+        display: flex;
+        flex-direction: column;
+      }
+      .back {
+        transform: rotateY(180deg);
+      }
+      .flip-card.flipped {
+        transform: rotateY(180deg);
+      }
+      .switch {
+        margin-top: 20px;
+        padding-top: 6px;
+        margin-bottom: 30px;
+        font-size: 14px;
+        text-align: left;
+        line-height: 1.45;
+      }
+      .small-back-wrap {
+        margin-top: 10px;
+        margin-bottom: 4px;
+      }
+      .small-link {
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .forgot-wrap {
+        margin-top: -2px;
+        margin-bottom: 6px;
+        text-align: left;
+        font-size: 13px;
+      }
+      .link-btn {
+        border: none;
+        background: transparent;
+        color: #2563eb;
+        cursor: pointer;
+        font-weight: 700;
+        padding: 0;
+      }
+      .auth-top {
+        text-align: center;
+        margin-bottom: 14px;
+      }
+      .logo-wrap {
+        text-align: center;
+        margin-bottom: 8px;
+      }
+      .logo {
+        width: 78px;
+        height: 78px;
+        object-fit: contain;
+      }
+      .brand-text {
+        text-align: center;
+        margin: 8px 0 12px;
+     
+      }
+      .subtitle {
+        font-size: 12px;
+        color: #6b7280;
+        margin-top: -4px;
+        margin-bottom: 10px;
+      }
+      .tagline {
+        font-size: 16px;
+        font-style: italic;
+        color: #2563eb;
+        margin-bottom: 6px;
+        font-weight: 600;
+      }
+      .project {
+        font-size: 12px;
+        color: #4b5563;
+        line-height: 18px;
+        margin-bottom: 8px;
+      }
+      .auth-title {
+        margin: 10px 0 14px;
+        text-align: left;
+        font-size: 26px;
+        letter-spacing: 0.3px;
+        /* font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; */
+      }
+      .auth-desc {
+        margin: 0 0 14px;
+        text-align: left;
+        font-size: 13px;
+        line-height: 1.45;
+        color: #475569;
+      }
+      .signup-progress {
+        margin: 2px 0 16px;
+      }
+      .signup-progress-line {
+        width: 100%;
+        height: 4px;
+        background: #cbd5e1;
+        border-radius: 999px;
+        overflow: hidden;
+      }
+      .signup-progress-fill {
+        display: block;
+        height: 100%;
+        width: 50%;
+        background: #16a34a;
+        border-radius: 999px;
+        transition: width 0.24s ease;
+      }
+      .signup-step[hidden],
+      .actions[hidden] {
+        display: none;
+      }
+      @keyframes oaInputIn {
+        from {
+          opacity: 0;
+          transform: translateY(6px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      @keyframes oaModalIn {
+        from {
+          opacity: 0;
+          transform: scale(0.95);
+        }
+        to {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+      @keyframes oaBackdropIn {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+      .modal-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.4);
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
+        z-index: 1000;
+        animation: oaBackdropIn 0.3s ease both;
+      }
+      .modal-overlay.open {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .modal {
+        background: linear-gradient(
+          145deg,
+          rgba(255, 255, 255, 0.95) 0%,
+          rgba(255, 255, 255, 0.9) 100%
+        );
+        border: 1px solid rgba(255, 255, 255, 0.8);
+        border-radius: 16px;
+        padding: 32px;
+        max-width: 380px;
+        width: 90%;
+        box-shadow:
+          0 20px 60px rgba(30, 64, 175, 0.2),
+          inset 0 1px 0 rgba(255, 255, 255, 0.8);
+        backdrop-filter: blur(20px) saturate(140%);
+        -webkit-backdrop-filter: blur(20px) saturate(140%);
+        animation: oaModalIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+        text-align: center;
+      }
+      .modal-icon {
+        font-size: 48px;
+        margin-bottom: 16px;
+        display: block;
+      }
+      .modal-icon.success {
+        color: #16a34a;
+      }
+      .modal-icon.error {
+        color: #dc2626;
+      }
+      .modal-title {
+        font-size: 22px;
+        font-weight: 700;
+        margin-bottom: 10px;
+        color: #111827;
+      }
+      .modal-message {
+        font-size: 14px;
+        color: #475569;
+        margin-bottom: 24px;
+        line-height: 1.5;
+      }
+      .modal-actions {
+        display: flex;
+        gap: 10px;
+        flex-direction: column;
+      }
+      .modal-btn {
+        border: none;
+        border-radius: 10px;
+        padding: 12px 16px;
+        cursor: pointer;
+        font-weight: 700;
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        transition:
+          transform 0.2s ease,
+          box-shadow 0.2s ease,
+          background-color 0.2s ease;
+      }
+      .modal-btn:hover {
+        transform: translateY(-2px);
+      }
+      .modal-btn.primary {
+        background: #2563eb;
+        color: #fff;
+        box-shadow: 0 8px 18px rgba(37, 99, 235, 0.26);
+      }
+      .modal-btn.primary:hover {
+        background: #1d4ed8;
+        box-shadow: 0 12px 22px rgba(37, 99, 235, 0.34);
+      }
+    </style>
+  </head>
+  <body data-oa-page="login">
+    <div id="oa-shared-header"></div>
+    <div class="container">
+      <div class="auth-top">
+        <div class="logo-wrap">
+          <img
+            class="logo"
+            src="https://raw.githubusercontent.com/wintechksa/OnlineAttendance/refs/heads/main/WintechIcon.png"
+            alt="Company Logo"
+          />
+        </div>
+        <div class="brand-text">
+          <div class="tagline">Welding Innovation Technology</div>
+          <div class="project">
+            Amiral Project Package 4<br />Utilities, Interconnecting and Flare
+            Unit<br />Kingdom of Saudi Arabia
+          </div>
+        </div>
+      </div>
+
+      <div class="flip-wrap">
+        <div id="flipCard" class="flip-card">
+          <div class="face front card">
+            <div class="face-inner">
+              <form id="loginForm" onsubmit="event.preventDefault(); document.getElementById('loginBtn').click();">
+              <h2 class="auth-title">LOGIN</h2>
+              <p class="auth-desc">
+                Enter your account details to view your timesheet and profile.
+              </p>
+            <div class="field">
+              <label for="employeeNumber">Employee Number or Email</label>
+              <div class="icon-field">
+                <i class="fa-solid fa-user field-icon"></i
+                ><input
+                  id="employeeNumber"
+                  type="text"
+                  placeholder="Employee Number or Email"
+                  required
+                />
+              </div>
+            </div>
+            <div class="field">
+              <label for="password">Password</label>
+              <div class="icon-field">
+                <i class="fa-solid fa-lock field-icon"></i
+                ><input
+                  id="password"
+                  type="password"
+                  placeholder="Password"
+                  required
+                  minlength="6"
+                /><button
+                  id="toggleLoginPassword"
+                  class="toggle-eye"
+                  type="button"
+                  aria-label="Show password"
+                >
+                  <i class="fa-regular fa-eye"></i>
+                </button>
+              </div>
+            </div>
+            <div class="forgot-wrap">
+              <a
+                href="./forgot-password.html"
+                class="link-btn"
+                style="text-decoration: none"
+                >Forgot Password?</a
+              >
+            </div>
+            <div class="actions login-actions">
+              <button id="loginBtn" class="btn-primary" type="submit">
+                Login
+              </button>
+            </div>
+            </form>
+            <div class="switch">
+              Not registered yet?
+              <button id="openSignupBtn" class="link-btn" type="button">
+                Sign Up
+              </button>
+            </div>
+            </div>
+          </div>
+
+          <div class="face back card">
+            <div class="face-inner">
+            <form id="signupForm" onsubmit="event.preventDefault(); document.getElementById('signupBtn').click();">
+            <h2 class="auth-title">SIGN UP</h2>
+            <p class="auth-desc">Complete your account details.</p>
+            <div class="signup-progress" aria-hidden="true">
+              <div class="signup-progress-line">
+                <span id="signupProgressFill" class="signup-progress-fill"></span>
+              </div>
+            </div>
+
+            <div id="signupStep1" class="signup-step">
+              <div class="field">
+                <label for="signupEmail">Email Address</label>
+                <div class="icon-field">
+                  <i class="fa-solid fa-envelope field-icon"></i
+                  ><input
+                    id="signupEmail"
+                    type="email"
+                    placeholder="Email Address"
+                    required
+                  />
+                </div>
+              </div>
+              <div class="field">
+                <label for="signupPassword">Password</label>
+                <div class="icon-field">
+                  <i class="fa-solid fa-lock field-icon"></i
+                  ><input
+                    id="signupPassword"
+                    type="password"
+                    placeholder="Password"
+                    required
+                    minlength="6"
+                  /><button
+                    id="toggleSignupPassword"
+                    class="toggle-eye"
+                    type="button"
+                    aria-label="Show password"
+                  >
+                    <i class="fa-regular fa-eye"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div id="signupStep2" class="signup-step" hidden>
+              <div class="field">
+                <label for="signupEmployeeNumber">Employee Number</label>
+                <div class="icon-field">
+                  <i class="fa-solid fa-id-card field-icon"></i
+                  ><input
+                    id="signupEmployeeNumber"
+                    type="text"
+                    placeholder="Employee Number"
+                    required
+                  />
+                </div>
+              </div>
+              <div class="field">
+                <label for="signupFullName">Full Name</label>
+                <div class="icon-field">
+                  <i class="fa-solid fa-user field-icon"></i
+                  ><input
+                    id="signupFullName"
+                    type="text"
+                    placeholder="Full Name"
+                    required
+                  />
+                </div>
+              </div>
+              <div class="field">
+                <label for="signupMobile">Mobile Number</label>
+                <div class="icon-field">
+                  <i class="fa-solid fa-phone field-icon"></i
+                  ><input
+                    id="signupMobile"
+                    type="text"
+                    placeholder="Mobile Number"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div id="signupStep1Actions" class="actions">
+              <button id="signupNextBtn" class="btn-primary" type="button">
+                Next
+              </button>
+            </div>
+            <div id="signupStep2Actions" class="actions" hidden>
+              <button id="signupBtn" class="btn-primary" type="submit">
+                Create Account
+              </button>
+            </div>
+            </form>
+            <div id="signupStep2BackWrap" class="small-back-wrap" hidden>
+              <button id="signupPrevBtn" class="link-btn small-link" type="button">
+                Back
+              </button>
+            </div>
+            <div class="switch">
+              Already have an account?
+              <button id="backToLoginBtn" class="link-btn" type="button">
+                Login
+              </button>
+            </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="signupModal" class="modal-overlay">
+      <div class="modal">
+        <i id="modalIcon" class="modal-icon fa-solid fa-check-circle"></i>
+        <h3 id="modalTitle" class="modal-title">Success</h3>
+        <p id="modalMessage" class="modal-message">Your account has been created successfully!</p>
+        <div class="modal-actions">
+          <button id="modalCloseBtn" class="modal-btn primary" type="button">
+            Continue
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="oa-shared-footer"></div>
+    <script src="./shared-layout.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+      const SESSION_KEY = "oa_supabase_session";
+      const CONFIG_KEY = "oa_supabase_config";
+      const RUNTIME_SUPABASE = window.__OA_SUPABASE__ || {};
+      const DEFAULT_SUPABASE_URL = RUNTIME_SUPABASE.supabaseUrl || "";
+      const DEFAULT_SUPABASE_ANON_KEY = RUNTIME_SUPABASE.supabaseAnonKey || "";
+
+      function bootstrapConfigFromQueryParams() {
+        const params = new URLSearchParams(window.location.search);
+        const url = (params.get("supabaseUrl") || params.get("sbUrl") || "").trim();
+        const anonKey =
+          (params.get("supabaseAnonKey") || params.get("sbAnonKey") || "").trim();
+
+        if (!url || !anonKey) return;
+
+        localStorage.setItem(
+          CONFIG_KEY,
+          JSON.stringify({ supabaseUrl: url, supabaseAnonKey: anonKey }),
+        );
+
+        params.delete("supabaseUrl");
+        params.delete("supabaseAnonKey");
+        params.delete("sbUrl");
+        params.delete("sbAnonKey");
+        const cleaned = params.toString();
+        const nextUrl = cleaned
+          ? window.location.pathname + "?" + cleaned
+          : window.location.pathname;
+        window.history.replaceState({}, document.title, nextUrl);
+      }
+
+      bootstrapConfigFromQueryParams();
+
+      function showMessage(id, message, isError) {
+        const el = document.getElementById(id);
+        el.textContent = message || "";
+        el.className = "message " + (isError ? "error" : "success");
+        updateFlipHeight(true);
+      }
+
+      function updateFlipHeight(animate = true) {
+        const wrap = document.querySelector(".flip-wrap");
+        const card = document.getElementById("flipCard");
+        if (!wrap || !card) return;
+
+        const isFlipped = card.classList.contains("flipped");
+        const activeFace = card.querySelector(
+          isFlipped ? ".face.back" : ".face.front"
+        );
+        if (!activeFace) return;
+
+        const activeInner = activeFace.querySelector(".face-inner") || activeFace;
+        const targetHeight = activeInner.scrollHeight;
+        if (!animate) {
+          const prevTransition = wrap.style.transition;
+          wrap.style.transition = "none";
+          wrap.style.height = targetHeight + "px";
+          card.style.height = targetHeight + "px";
+          void wrap.offsetHeight;
+          wrap.style.transition = prevTransition;
+          return;
+        }
+
+        wrap.style.height = targetHeight + "px";
+        card.style.height = targetHeight + "px";
+      }
+
+      function saveSession(data) {
+        localStorage.setItem(SESSION_KEY, JSON.stringify(data));
+      }
+
+      function getConfig() {
+        try {
+          const saved =
+            JSON.parse(localStorage.getItem(CONFIG_KEY) || "null") || {};
+          return {
+            supabaseUrl: saved.supabaseUrl || DEFAULT_SUPABASE_URL,
+            supabaseAnonKey: saved.supabaseAnonKey || DEFAULT_SUPABASE_ANON_KEY,
+          };
+        } catch (_) {
+          return {
+            supabaseUrl: DEFAULT_SUPABASE_URL,
+            supabaseAnonKey: DEFAULT_SUPABASE_ANON_KEY,
+          };
+        }
+      }
+
+      function createClientOrThrow() {
+        const cfg = getConfig();
+        if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) {
+          throw new Error(
+            "Supabase settings are missing. Open login with ?supabaseUrl=...&supabaseAnonKey=... once to save config.",
+          );
+        }
+        return {
+          cfg: cfg,
+          client: window.supabase.createClient(
+            cfg.supabaseUrl,
+            cfg.supabaseAnonKey,
+          ),
+        };
+      }
+
+      function generateOtpCode() {
+        return String(Math.floor(100000 + Math.random() * 900000));
+      }
+
+      function showModal(title, message, isError = false) {
+        const modal = document.getElementById("signupModal");
+        const icon = document.getElementById("modalIcon");
+        const titleEl = document.getElementById("modalTitle");
+        const msgEl = document.getElementById("modalMessage");
+
+        titleEl.textContent = title;
+        msgEl.textContent = message;
+
+        if (isError) {
+          icon.className = "modal-icon error fa-solid fa-exclamation-circle";
+        } else {
+          icon.className = "modal-icon success fa-solid fa-check-circle";
+        }
+
+        modal.classList.add("open");
+      }
+
+      function hideModal() {
+        const modal = document.getElementById("signupModal");
+        modal.classList.remove("open");
+      }
+
+      function switchAuthView(showSignup) {
+        const flipCard = document.getElementById("flipCard");
+        if (!flipCard) return;
+        flipCard.classList.toggle("flipped", Boolean(showSignup));
+        requestAnimationFrame(function () {
+          requestAnimationFrame(function () {
+            updateFlipHeight(true);
+          });
+        });
+      }
+
+      function setSignupStep(step, animate = true) {
+        const currentStep = step === 2 ? 2 : 1;
+        const step1 = document.getElementById("signupStep1");
+        const step2 = document.getElementById("signupStep2");
+        const step1Actions = document.getElementById("signupStep1Actions");
+        const step2Actions = document.getElementById("signupStep2Actions");
+        const step2BackWrap = document.getElementById("signupStep2BackWrap");
+        const progressFill = document.getElementById("signupProgressFill");
+
+        if (step1) step1.hidden = currentStep !== 1;
+        if (step2) step2.hidden = currentStep !== 2;
+        if (step1Actions) step1Actions.hidden = currentStep !== 1;
+        if (step2Actions) step2Actions.hidden = currentStep !== 2;
+        if (step2BackWrap) step2BackWrap.hidden = currentStep !== 2;
+        if (progressFill) progressFill.style.width = currentStep === 1 ? "50%" : "100%";
+
+        if (!animate) {
+          updateFlipHeight(false);
+          return;
+        }
+
+        requestAnimationFrame(function () {
+          updateFlipHeight(true);
+        });
+      }
+
+      document
+        .getElementById("openSignupBtn")
+        .addEventListener("click", function () {
+          document.getElementById("signupEmployeeNumber").value = document
+            .getElementById("employeeNumber")
+            .value.trim();
+          document.getElementById("signupEmail").value = "";
+          setSignupStep(1, false);
+          switchAuthView(true);
+        });
+
+      document
+        .getElementById("backToLoginBtn")
+        .addEventListener("click", function () {
+          switchAuthView(false);
+          setSignupStep(1, false);
+        });
+
+      document
+        .getElementById("signupNextBtn")
+        .addEventListener("click", function () {
+          try {
+            const email = document
+              .getElementById("signupEmail")
+              .value.trim()
+              .toLowerCase();
+            const password = document.getElementById("signupPassword").value;
+
+            if (!email || !password) {
+              throw new Error("Email and password are required.");
+            }
+            if (email.indexOf("@") < 0) {
+              throw new Error("Please enter a valid email address.");
+            }
+            if (password.length < 6) {
+              throw new Error("Password must be at least 6 characters.");
+            }
+
+            setSignupStep(2, true);
+            document.getElementById("signupEmployeeNumber").focus();
+          } catch (err) {
+            showModal("Validation Error", err.message || "Please check your details.", true);
+          }
+        });
+
+      document
+        .getElementById("signupPrevBtn")
+        .addEventListener("click", function () {
+          setSignupStep(1, true);
+          document.getElementById("signupEmail").focus();
+        });
+
+      function bindPasswordToggle(buttonId, inputId) {
+        const btn = document.getElementById(buttonId);
+        const input = document.getElementById(inputId);
+        if (!btn || !input) return; // defensive: skip if elements missing
+        btn.addEventListener("click", function () {
+          try {
+            const isHidden = input.type === "password";
+            input.type = isHidden ? "text" : "password";
+            btn.innerHTML = isHidden
+              ? '<i class="fa-regular fa-eye-slash"></i>'
+              : '<i class="fa-regular fa-eye"></i>';
+          } catch (e) {
+            console.error('Password toggle error:', e);
+          }
+        });
+      }
+
+      bindPasswordToggle("toggleLoginPassword", "password");
+      bindPasswordToggle("toggleSignupPassword", "signupPassword");
+
+      function initFloatingLabels() {
+        const fields = Array.from(document.querySelectorAll(".field"));
+        fields.forEach(function (field) {
+          const input = field.querySelector("input");
+          if (!input) return;
+
+          function syncValueState() {
+            if (String(input.value || "").trim()) {
+              field.classList.add("has-value");
+            } else {
+              field.classList.remove("has-value");
+            }
+          }
+
+          input.addEventListener("focus", function () {
+            field.classList.add("focused");
+          });
+
+          input.addEventListener("blur", function () {
+            field.classList.remove("focused");
+            syncValueState();
+          });
+
+          input.addEventListener("input", syncValueState);
+          syncValueState();
+        });
+      }
+
+      initFloatingLabels();
+      updateFlipHeight(false);
+
+      window.addEventListener("resize", function () {
+        updateFlipHeight(false);
+      });
+
+      const modalCloseBtn = document.getElementById("modalCloseBtn");
+      if (modalCloseBtn) {
+        modalCloseBtn.addEventListener("click", function () {
+          hideModal();
+        });
+      }
+
+      document
+        .getElementById("signupBtn")
+        .addEventListener("click", async function () {
+          try {
+            const created = createClientOrThrow();
+            const client = created.client;
+            const employeeNumber = document
+              .getElementById("signupEmployeeNumber")
+              .value.trim();
+            const email = document
+              .getElementById("signupEmail")
+              .value.trim()
+              .toLowerCase();
+            const mobile = document.getElementById("signupMobile").value.trim();
+            const fullName = document
+              .getElementById("signupFullName")
+              .value.trim();
+            const password = document.getElementById("signupPassword").value;
+            if (!employeeNumber || !fullName || !mobile)
+              throw new Error(
+                "Employee number, full name and mobile number are required.",
+              );
+            if (!email || !password)
+              throw new Error("Email and password are required.");
+            if (password.length < 6)
+              throw new Error("Password must be at least 6 characters.");
+
+            const response = await client
+              .from("employee_profiles")
+              .insert([
+                {
+                  employee_number: employeeNumber,
+                  email: email,
+                  mobile_number: mobile || null,
+                  full_name: fullName,
+                  login_password: password,
+                  role: "employee",
+                  status: "active",
+                },
+              ]);
+
+            if (response.error) {
+              const err = response.error;
+              if (
+                String(err.message || "")
+                  .toLowerCase()
+                  .indexOf("employee_profiles") >= 0
+              ) {
+                throw new Error(
+                  "Table public.employee_profiles not found. Run schema.sql in Supabase SQL Editor first.",
+                );
+              }
+              throw err;
+            }
+
+            document.getElementById("employeeNumber").value = employeeNumber;
+            showModal("Account Created!", "Your account has been created successfully. You can now login with your credentials.", false);
+            setTimeout(function () {
+              switchAuthView(false);
+              setSignupStep(1, false);
+              hideModal();
+            }, 2500);
+          } catch (err) {
+            const errMsg = err.message || "Signup failed.";
+            showModal("Signup Failed", errMsg, true);
+          }
+        });
+
+      document
+        .getElementById("loginBtn")
+        .addEventListener("click", async function () {
+          try {
+            const loginValue = document
+              .getElementById("employeeNumber")
+              .value.trim();
+            const password = document.getElementById("password").value;
+            if (!loginValue || !password)
+              throw new Error(
+                "Employee number/email and password are required.",
+              );
+
+            const created = createClientOrThrow();
+            const client = created.client;
+
+            let query = client
+              .from("employee_profiles")
+              .select(
+                "employee_number, email, full_name, role, status, login_password, mobile_number",
+              );
+
+            if (loginValue.indexOf("@") >= 0) {
+              query = query.eq("email", loginValue.toLowerCase());
+            } else {
+              query = query.eq("employee_number", loginValue);
+            }
+
+            const result = await query.maybeSingle();
+
+            if (result.error || !result.data) {
+              if (
+                result.error &&
+                String(result.error.message || "")
+                  .toLowerCase()
+                  .indexOf("employee_profiles") >= 0
+              ) {
+                throw new Error(
+                  "Table public.employee_profiles not found. Run schema.sql then try again.",
+                );
+              }
+              throw new Error("Account not found. Please sign up first.");
+            }
+            const data = result.data;
+
+            if (!data || data.status !== "active")
+              throw new Error("Account inactive. Contact admin.");
+            const role = data.role || "employee";
+
+            if (role === "admin") {
+              // Use server-side RPC to verify admin password against stored hash
+              const rpcRes = await client.rpc('verify_admin_password', {
+                identifier: loginValue,
+                provided_password: password,
+              });
+              if (rpcRes.error) {
+                const msg = String(rpcRes.error.message || '').toLowerCase();
+                if (msg.indexOf('admin_profiles') >= 0 || msg.indexOf('does not exist') >= 0 || msg.indexOf('relation') >= 0) {
+                  throw new Error('Database missing table public.admin_profiles. Run schema.sql in Supabase SQL Editor.');
+                }
+                throw rpcRes.error;
+              }
+              // rpcRes.data may be a boolean or an object-wrapped boolean depending on PG/Supabase return
+              let valid = false;
+              if (rpcRes.data === true) valid = true;
+              else if (rpcRes.data && typeof rpcRes.data === 'object') {
+                const vals = Object.values(rpcRes.data);
+                if (vals.length && vals[0] === true) valid = true;
+              }
+              if (!valid) throw new Error('Invalid password.');
+            } else if (String(data.login_password || "") !== String(password)) {
+              throw new Error("Invalid password.");
+            }
+
+            saveSession({
+              employeeNumber: data.employee_number,
+              fullName: data.full_name,
+              email: data.email,
+              mobileNumber: data.mobile_number || "",
+              role: role,
+            });
+
+            if (role === "admin") {
+              window.location.href = "./admin.html";
+            } else {
+              window.location.href = "./timesheet-view.html";
+            }
+          } catch (err) {
+            showModal("Login Failed", err.message || "Login failed.", true);
+          }
+        });
+    </script>
+  </body>
+</html>
