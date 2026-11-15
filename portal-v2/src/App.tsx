@@ -110,7 +110,7 @@ function Portal({ demo, session, onExit }: { demo: boolean; session: Session | n
         <section className="table-card"><div className="table-heading"><div><h2>Attendance details</h2><p>{profile.work_category?.name} · {minutesToHours(profile.work_category?.regular_minutes ?? 0)} regular hrs/day</p></div><span className="synced">● TimeStation · sample</span></div>
           <div className="table-scroll"><table><thead><tr><th>Date</th><th>AM In</th><th>AM Out</th><th>PM In</th><th>PM Out</th><th>Basic</th><th>OT</th><th>Total hrs</th><th>Status</th></tr></thead><tbody>{rows.map(row => <tr key={row.id}><td><strong>{formatDate(row.workDate)}</strong></td><td>{row.amIn ?? '—'}</td><td>{row.amOut ?? '—'}</td><td>{row.pmIn ?? '—'}</td><td>{row.pmOut ?? '—'}</td><td>{minutesToHours(row.basicMinutes)}</td><td className="ot">{minutesToHours(row.overtimeMinutes)}</td><td><strong>{minutesToHours(row.totalMinutes)}</strong></td><td><span className={`status ${row.status}`}>{row.status === 'complete' ? 'Complete' : row.status === 'incomplete' ? 'Needs review' : row.status}</span></td></tr>)}</tbody></table></div>
         </section>
-        <section className="confirm-card"><div><h3>Everything looks correct?</h3><p>Confirm before cutoff. Approved corrections will be reflected automatically.</p></div><button className="primary compact" onClick={confirm}>Confirm timesheet</button></section>
+        <section className="confirm-card"><div><h3>Everything looks correct?</h3><p>Confirm before cutoff. Correction requests remain tracked for authorized review.</p></div><button className="primary compact" onClick={confirm}>Confirm timesheet</button></section>
         {notice && <div className="toast" role="status">{notice}</div>}
       </> : <Corrections demo={demo} reviewerId={session?.user.id ?? null} canReview={profile.role === 'admin' || profile.role === 'reviewer'} corrections={corrections} setCorrections={setCorrections} />}
     </main>
@@ -139,3 +139,4 @@ function Corrections({ demo, reviewerId, canReview, corrections, setCorrections 
 
 function formatDate(value: string) { return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', weekday: 'short', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`)) }
 function formatShortDate(value: string) { return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`)) }
+
