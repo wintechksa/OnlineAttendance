@@ -62,4 +62,10 @@ The provisioning script requires `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` 
 
 The schema records approval/rejection and audit history. An approved request does not silently rewrite attendance punches; a dedicated reviewer edit/apply screen should be added after WINTECH confirms the exact correction rules (which fields reviewers may change and whether corrected totals should replace or overlay TimeStation totals). This prevents an ambiguous correction from changing computed hours.
 
-No GitHub, Supabase, Cloudflare, or TimeStation account has been connected or deployed from this workspace.
+Current connection status (2026-11-15):
+
+- GitHub: code published to `wintechksa/OnlineAttendance`, branch `timesheet-portal-v2`, folder `portal-v2/`.
+- Supabase: secure schema and seed applied to the `Wintech Attendance` project.
+- Cloudflare: deployment remains pending until browser authorization completes.
+- TimeStation: not connected; the previously shared key must be revoked and a new key stored only as a Cloudflare secret.
+
