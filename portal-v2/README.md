@@ -66,6 +66,6 @@ Current connection status (2026-11-15):
 
 - GitHub: code published to `wintechksa/OnlineAttendance`, branch `timesheet-portal-v2`, folder `portal-v2/`.
 - Supabase: secure schema and seed applied to the `Wintech Attendance` project.
-- Cloudflare: deployment remains pending until browser authorization completes.
+- Cloudflare: staging preview deployed at `https://staging.wintech-timesheet-portal.pages.dev`; production promotion is intentionally pending private secrets and employee setup.
 - TimeStation: not connected; the previously shared key must be revoked and a new key stored only as a Cloudflare secret.
 
