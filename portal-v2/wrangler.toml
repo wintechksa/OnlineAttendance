@@ -1,0 +1,7 @@
+name = "wintech-timesheet-portal"
+compatibility_date = "2026-11-01"
+pages_build_output_dir = "dist"
+
+# Add secrets with the Cloudflare dashboard or Wrangler. Do not commit values:
+# SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, SUPABASE_SERVICE_ROLE_KEY,
+# TIMESTATION_API_KEY
