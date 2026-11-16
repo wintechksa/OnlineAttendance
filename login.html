@@ -486,7 +486,7 @@
         <div id="flipCard" class="flip-card">
           <div class="face front card">
             <div class="face-inner">
-              <form id="loginForm" onsubmit="event.preventDefault(); document.getElementById('loginBtn').click();">
+              <form id="loginForm" novalidate>
               <h2 class="auth-title">LOGIN</h2>
               <p class="auth-desc">
                 Enter your account details to view your timesheet and profile.
@@ -512,7 +512,6 @@
                   type="password"
                   placeholder="Password"
                   required
-                  minlength="6"
                 /><button
                   id="toggleLoginPassword"
                   class="toggle-eye"
@@ -548,7 +547,7 @@
 
           <div class="face back card">
             <div class="face-inner">
-            <form id="signupForm" onsubmit="event.preventDefault(); document.getElementById('signupBtn').click();">
+            <form id="signupForm" novalidate>
             <h2 class="auth-title">SIGN UP</h2>
             <p class="auth-desc">Complete your account details.</p>
             <div class="signup-progress" aria-hidden="true">
@@ -579,7 +578,7 @@
                     type="password"
                     placeholder="Password"
                     required
-                    minlength="6"
+                    minlength="8"
                   /><button
                     id="toggleSignupPassword"
                     class="toggle-eye"
@@ -674,7 +673,8 @@
 
     <div id="oa-shared-footer"></div>
     <script src="./shared-layout.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="./auth-config.js"></script>
+  <script src="./portal-client.js"></script>
     <script>
       const SESSION_KEY = "oa_supabase_session";
       const CONFIG_KEY = "oa_supabase_config";
@@ -762,26 +762,6 @@
         }
       }
 
-      function createClientOrThrow() {
-        const cfg = getConfig();
-        if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) {
-          throw new Error(
-            "Supabase settings are missing. Open login with ?supabaseUrl=...&supabaseAnonKey=... once to save config.",
-          );
-        }
-        return {
-          cfg: cfg,
-          client: window.supabase.createClient(
-            cfg.supabaseUrl,
-            cfg.supabaseAnonKey,
-          ),
-        };
-      }
-
-      function generateOtpCode() {
-        return String(Math.floor(100000 + Math.random() * 900000));
-      }
-
       function showModal(title, message, isError = false) {
         const modal = document.getElementById("signupModal");
         const icon = document.getElementById("modalIcon");
@@ -816,8 +796,10 @@
         });
       }
 
+      let signupStep = 1;
       function setSignupStep(step, animate = true) {
         const currentStep = step === 2 ? 2 : 1;
+        signupStep = currentStep;
         const step1 = document.getElementById("signupStep1");
         const step2 = document.getElementById("signupStep2");
         const step1Actions = document.getElementById("signupStep1Actions");
@@ -873,11 +855,11 @@
             if (!email || !password) {
               throw new Error("Email and password are required.");
             }
-            if (email.indexOf("@") < 0) {
+            if (!document.getElementById("signupEmail").checkValidity()) {
               throw new Error("Please enter a valid email address.");
             }
-            if (password.length < 6) {
-              throw new Error("Password must be at least 6 characters.");
+            if (password.length < 8) {
+              throw new Error("Password must be at least 8 characters.");
             }
 
             setSignupStep(2, true);
@@ -956,165 +938,60 @@
         });
       }
 
-      document
-        .getElementById("signupBtn")
-        .addEventListener("click", async function () {
-          try {
-            const created = createClientOrThrow();
-            const client = created.client;
-            const employeeNumber = document
-              .getElementById("signupEmployeeNumber")
-              .value.trim();
-            const email = document
-              .getElementById("signupEmail")
-              .value.trim()
-              .toLowerCase();
-            const mobile = document.getElementById("signupMobile").value.trim();
-            const fullName = document
-              .getElementById("signupFullName")
-              .value.trim();
-            const password = document.getElementById("signupPassword").value;
-            if (!employeeNumber || !fullName || !mobile)
-              throw new Error(
-                "Employee number, full name and mobile number are required.",
-              );
-            if (!email || !password)
-              throw new Error("Email and password are required.");
-            if (password.length < 6)
-              throw new Error("Password must be at least 6 characters.");
+      document.getElementById("signupForm").addEventListener("submit", async function (event) {
+        event.preventDefault();
+        if (signupStep === 1) { document.getElementById("signupNextBtn").click(); return; }
+        const button = document.getElementById("signupBtn");
+        if (button.disabled) return;
+        const employeeNumber = document.getElementById("signupEmployeeNumber").value.trim();
+        const email = document.getElementById("signupEmail").value.trim().toLowerCase();
+        const mobileNumber = document.getElementById("signupMobile").value.trim();
+        const fullName = document.getElementById("signupFullName").value.trim();
+        const password = document.getElementById("signupPassword").value;
+        try {
+          if (!employeeNumber || !fullName || !mobileNumber) throw new Error("Employee number, full name and mobile number are required.");
+          if (!email || !document.getElementById("signupEmail").checkValidity()) throw new Error("Please enter a valid email address.");
+          if (password.length < 8 || new TextEncoder().encode(password).length > 72) throw new Error("Password must contain at least 8 characters and at most 72 UTF-8 bytes.");
+          button.disabled = true;
+          button.textContent = "Creating account...";
+          await OAPortal.request("signup", { employeeNumber, email, mobileNumber, fullName, password });
+          document.getElementById("signupForm").reset();
+          document.getElementById("employeeNumber").value = employeeNumber;
+          document.getElementById("password").value = "";
+          switchAuthView(false);
+          setSignupStep(1, false);
+          showModal("Account Created!", "You can now login with your employee number or email and password.", false);
+        } catch (err) {
+          showModal("Signup Failed", err.message || "Signup failed.", true);
+        } finally {
+          button.disabled = false;
+          button.textContent = "Create Account";
+        }
+      });
 
-            const response = await client
-              .from("employee_profiles")
-              .insert([
-                {
-                  employee_number: employeeNumber,
-                  email: email,
-                  mobile_number: mobile || null,
-                  full_name: fullName,
-                  login_password: password,
-                  role: "employee",
-                  status: "active",
-                },
-              ]);
-
-            if (response.error) {
-              const err = response.error;
-              if (
-                String(err.message || "")
-                  .toLowerCase()
-                  .indexOf("employee_profiles") >= 0
-              ) {
-                throw new Error(
-                  "Table public.employee_profiles not found. Run schema.sql in Supabase SQL Editor first.",
-                );
-              }
-              throw err;
-            }
-
-            document.getElementById("employeeNumber").value = employeeNumber;
-            showModal("Account Created!", "Your account has been created successfully. You can now login with your credentials.", false);
-            setTimeout(function () {
-              switchAuthView(false);
-              setSignupStep(1, false);
-              hideModal();
-            }, 2500);
-          } catch (err) {
-            const errMsg = err.message || "Signup failed.";
-            showModal("Signup Failed", errMsg, true);
-          }
-        });
-
-      document
-        .getElementById("loginBtn")
-        .addEventListener("click", async function () {
-          try {
-            const loginValue = document
-              .getElementById("employeeNumber")
-              .value.trim();
-            const password = document.getElementById("password").value;
-            if (!loginValue || !password)
-              throw new Error(
-                "Employee number/email and password are required.",
-              );
-
-            const created = createClientOrThrow();
-            const client = created.client;
-
-            let query = client
-              .from("employee_profiles")
-              .select(
-                "employee_number, email, full_name, role, status, login_password, mobile_number",
-              );
-
-            if (loginValue.indexOf("@") >= 0) {
-              query = query.eq("email", loginValue.toLowerCase());
-            } else {
-              query = query.eq("employee_number", loginValue);
-            }
-
-            const result = await query.maybeSingle();
-
-            if (result.error || !result.data) {
-              if (
-                result.error &&
-                String(result.error.message || "")
-                  .toLowerCase()
-                  .indexOf("employee_profiles") >= 0
-              ) {
-                throw new Error(
-                  "Table public.employee_profiles not found. Run schema.sql then try again.",
-                );
-              }
-              throw new Error("Account not found. Please sign up first.");
-            }
-            const data = result.data;
-
-            if (!data || data.status !== "active")
-              throw new Error("Account inactive. Contact admin.");
-            const role = data.role || "employee";
-
-            if (role === "admin") {
-              // Use server-side RPC to verify admin password against stored hash
-              const rpcRes = await client.rpc('verify_admin_password', {
-                identifier: loginValue,
-                provided_password: password,
-              });
-              if (rpcRes.error) {
-                const msg = String(rpcRes.error.message || '').toLowerCase();
-                if (msg.indexOf('admin_profiles') >= 0 || msg.indexOf('does not exist') >= 0 || msg.indexOf('relation') >= 0) {
-                  throw new Error('Database missing table public.admin_profiles. Run schema.sql in Supabase SQL Editor.');
-                }
-                throw rpcRes.error;
-              }
-              // rpcRes.data may be a boolean or an object-wrapped boolean depending on PG/Supabase return
-              let valid = false;
-              if (rpcRes.data === true) valid = true;
-              else if (rpcRes.data && typeof rpcRes.data === 'object') {
-                const vals = Object.values(rpcRes.data);
-                if (vals.length && vals[0] === true) valid = true;
-              }
-              if (!valid) throw new Error('Invalid password.');
-            } else if (String(data.login_password || "") !== String(password)) {
-              throw new Error("Invalid password.");
-            }
-
-            saveSession({
-              employeeNumber: data.employee_number,
-              fullName: data.full_name,
-              email: data.email,
-              mobileNumber: data.mobile_number || "",
-              role: role,
-            });
-
-            if (role === "admin") {
-              window.location.href = "./admin.html";
-            } else {
-              window.location.href = "./timesheet-view.html";
-            }
-          } catch (err) {
-            showModal("Login Failed", err.message || "Login failed.", true);
-          }
-        });
+      document.getElementById("loginForm").addEventListener("submit", async function (event) {
+        event.preventDefault();
+        const button = document.getElementById("loginBtn");
+        if (button.disabled) return;
+        try {
+          const identifier = document.getElementById("employeeNumber").value.trim();
+          const password = document.getElementById("password").value;
+          if (!identifier || !password) throw new Error("Employee number/email and password are required.");
+          button.disabled = true;
+          button.textContent = "Logging in...";
+          const data = await OAPortal.request("login", { identifier, password });
+          if (!data || !data.session_token || !["admin", "employee"].includes(data.role)) throw new Error("Unable to start your session. Please try again.");
+          saveSession({ employeeNumber: data.employee_number, fullName: data.full_name, email: data.email,
+            role: data.role, sessionToken: data.session_token, mustChangePassword: !!data.must_change_password });
+          document.getElementById("password").value = "";
+          window.location.href = data.must_change_password ? "./employee-profile.html" : data.role === "admin" ? "./admin.html" : "./timesheet-view.html";
+        } catch (err) {
+          showModal("Login Failed", err.message || "Login failed.", true);
+        } finally {
+          button.disabled = false;
+          button.textContent = "Login";
+        }
+      });
     </script>
   </body>
 </html>

@@ -542,7 +542,7 @@
 
         <div class="profile-section">
           <div class="section-title-wrapper">
-            <h3 class="section-title"><span class="section-icon">👤</span>Personal Information</h3>
+            <h3 class="section-title"><span class="section-icon">??</span>Personal Information</h3>
           </div>
           <div class="profile-grid">
             <div class="profile-field">
@@ -614,7 +614,7 @@
 
         <div class="profile-section">
           <div class="section-title-wrapper">
-            <h3 class="section-title"><span class="section-icon">💼</span>Work Information</h3>
+            <h3 class="section-title"><span class="section-icon">??</span>Work Information</h3>
           </div>
           <div class="profile-grid">
             <div class="profile-field">
@@ -644,9 +644,9 @@
         <div class="profile-section">
           <div class="password-section">
             <div class="section-title-wrapper">
-              <h3 class="section-title"><span class="section-icon">🔐</span>Change Password</h3>
+              <h3 class="section-title"><span class="section-icon">??</span>Change Password</h3>
             </div>
-            <p style="font-size: 13px; color: #64748b; margin-top: 12px;">Update your password with OTP verification sent to your email</p>
+            <p style="font-size: 13px; color: #64748b; margin-top: 12px;">Enter your current password and choose a new password with at least 8 characters.</p>
             
             <div class="password-grid">
               <div class="profile-field">
@@ -654,29 +654,7 @@
                 <input type="password" class="field-input" id="currentPassword">
               </div>
               
-              <div id="otpSection" class="otp-container">
-                <div class="otp-info">
-                  📧 An OTP has been sent to your email address. Please check your inbox.
-                </div>
-                <div class="otp-entry">
-                  <div class="profile-field">
-                    <label class="field-label">Enter OTP</label>
-                    <input type="text" class="field-input" id="otpInput" maxlength="6" placeholder="Enter 6-digit OTP">
-                  </div>
-                  <div id="otpTimer" class="otp-timer" style="display:none;">
-                    <svg id="otpTimerSvg" viewBox="0 0 64 64">
-                      <circle cx="32" cy="32" r="28" stroke="#e6eefc" stroke-width="6" fill="none" />
-                      <circle id="otpTimerCircle" cx="32" cy="32" r="28" stroke="#2563eb" stroke-width="6" fill="none" stroke-linecap="round" transform="rotate(-90 32 32)" stroke-dasharray="0 999" />
-                    </svg>
-                    <div>
-                      <div id="otpTimerLabel" class="timer-label">02:00</div>
-                      <div style="font-size:12px;color:#64748b">Time remaining</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div id="newPasswordSection" class="otp-container">
+                            <div id="newPasswordSection" class="otp-container">
                 <div class="profile-field">
                   <label class="field-label">New Password</label>
                   <input type="password" class="field-input" id="newPassword">
@@ -688,8 +666,6 @@
               </div>
 
               <div style="display: flex; gap: 12px; align-items:center; margin-top: 8px;">
-                <button type="button" class="btn btn-success" id="sendOtpBtn">Send OTP</button>
-                <button type="button" class="btn btn-secondary" id="resendOtpBtn" style="display: none;" disabled>Resend OTP</button>
                 <button type="button" class="btn btn-primary" id="changePasswordBtn" style="display: none;">Update Password</button>
               </div>
             </div>
@@ -722,20 +698,14 @@
 
     <div id="oa-shared-footer"></div>
     <script src="./shared-layout.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="./auth-config.js"></script>
+  <script src="./portal-client.js"></script>
     <script>
       const SESSION_KEY = "oa_supabase_session";
       const CONFIG_KEY = "oa_supabase_config";
-      const DEFAULT_SUPABASE_URL = "";
-      const DEFAULT_SUPABASE_ANON_KEY = "";
-      const GMAIL_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyor_5cz8I_RKSGBOLXS_bqZagv9vB1Xa9yJwrEz_z_LSl57jz5qegVGtZh1mcB2Odvgw/exec"; // Add your Google Apps Script Web App URL here
+      const DEFAULT_SUPABASE_URL = window.__OA_SUPABASE__.supabaseUrl;
+      const DEFAULT_SUPABASE_ANON_KEY = window.__OA_SUPABASE__.supabaseAnonKey;
 
-      let currentOtp = null;
-      let otpExpiry = null;
-      // resend control: button state managed by OTP expiry
-      let otpTimerInterval = null;
-      let otpTimerStart = null;
-      let otpTimerDuration = null;
       let modalCallback = null;
 
       // Modal functions
@@ -747,12 +717,12 @@
         const btn = document.getElementById('modalBtn');
         
         const icons = {
-          'error': '❌',
-          'success': '✅',
-          'info': 'ℹ️'
+          'error': '?',
+          'success': '?',
+          'info': '??'
         };
         
-        icon.textContent = icons[type] || '❌';
+        icon.textContent = icons[type] || '?';
         icon.className = `modal-icon ${type}`;
         titleElem.textContent = title;
         msgElem.textContent = message;
@@ -767,79 +737,6 @@
         if (modalCallback) {
           modalCallback();
           modalCallback = null;
-        }
-      }
-
-      // (resend countdown removed) Resend is controlled by OTP expiry state
-
-      // Start OTP expiry circular timer (seconds)
-      function startOtpTimer(seconds) {
-        const timerEl = document.getElementById('otpTimer');
-        const circle = document.getElementById('otpTimerCircle');
-        const label = document.getElementById('otpTimerLabel');
-        if (!circle || !label || !timerEl) return;
-
-        // clear any existing timer
-        if (otpTimerInterval) {
-          clearInterval(otpTimerInterval);
-          otpTimerInterval = null;
-        }
-
-        const radius = 28;
-        const circumference = 2 * Math.PI * radius;
-        circle.style.strokeDasharray = `${circumference} ${circumference}`;
-        circle.style.strokeDashoffset = `${circumference}`;
-
-        otpTimerStart = Date.now();
-        otpTimerDuration = seconds * 1000;
-        timerEl.style.display = 'flex';
-
-        function update() {
-          const now = Date.now();
-          const elapsed = now - otpTimerStart;
-          const remaining = Math.max(0, otpTimerDuration - elapsed);
-          const progress = Math.min(1, elapsed / otpTimerDuration);
-          const offset = circumference * (1 - progress);
-          circle.style.strokeDashoffset = offset;
-
-          // update label mm:ss
-          const s = Math.ceil(remaining / 1000);
-          const mm = String(Math.floor(s / 60)).padStart(2, '0');
-          const ss = String(s % 60).padStart(2, '0');
-          label.textContent = `${mm}:${ss}`;
-
-          if (remaining <= 0) {
-            stopOtpTimer();
-            // expiry UX: show info
-            showModal('error', 'OTP Expired', 'The OTP has expired. Please request a new one.');
-            // enable the resend button when OTP validity ends
-            const resendBtn = document.getElementById('resendOtpBtn');
-            if (resendBtn) {
-              resendBtn.disabled = false;
-              resendBtn.style.display = 'inline-block';
-            }
-          }
-        }
-
-        // update immediately then every 250ms for smoothness
-        update();
-        otpTimerInterval = setInterval(update, 250);
-      }
-
-      function stopOtpTimer() {
-        if (otpTimerInterval) {
-          clearInterval(otpTimerInterval);
-          otpTimerInterval = null;
-        }
-        const timerEl = document.getElementById('otpTimer');
-        const label = document.getElementById('otpTimerLabel');
-        const circle = document.getElementById('otpTimerCircle');
-        if (timerEl) timerEl.style.display = 'none';
-        if (label) label.textContent = '00:00';
-        if (circle) {
-          const radius = 28;
-          const circumference = 2 * Math.PI * radius;
-          circle.style.strokeDashoffset = circumference;
         }
       }
 
@@ -884,15 +781,12 @@
         }
         return {
           cfg: cfg,
-          client: window.supabase.createClient(
-            cfg.supabaseUrl,
-            cfg.supabaseAnonKey,
-          ),
+          client: OAPortal,
         };
       }
 
       const session = getSession();
-      if (!session) {
+      if (!session || !session.sessionToken) {
         window.location.href = "./login.html";
       }
 
@@ -963,11 +857,9 @@
           }
 
           const data = result.data;
-          console.log("Profile data loaded:", data);
           // Debug helper: log the specific name/job fields and warn if they look swapped
-          console.log('Profile fields:', { full_name: data.full_name, job_title: data.job_title });
           if (data.full_name && data.job_title && data.full_name === data.job_title) {
-            console.warn('Warning: full_name and job_title are identical — check database row for this employee.');
+            console.warn('Warning: full_name and job_title are identical - check database row for this employee.');
           }
           originalData = { ...data };
 
@@ -1017,32 +909,6 @@
         }
       }
 
-      // Send OTP to email via Google Apps Script
-      async function sendOTPEmail(email, otp) {
-        if (!GMAIL_SCRIPT_URL) {
-          console.log(`OTP for ${email}: ${otp}`);
-          showModal('info', 'Demo Mode', `Your OTP is: ${otp}\n(In production, this will be sent to your email)`);
-          return true;
-        }
-        
-        try {
-          const response = await fetch(GMAIL_SCRIPT_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              to: email,
-              subject: 'Password Change OTP',
-              otp: otp
-            })
-          });
-          return true;
-        } catch (error) {
-          console.error('Failed to send OTP:', error);
-          return false;
-        }
-      }
-
       // Event Listeners
       document.getElementById("editModeToggle").addEventListener("change", function() {
         if (this.checked) {
@@ -1084,155 +950,26 @@
         }
       });
 
-      document.getElementById("sendOtpBtn").addEventListener("click", async function() {
-        const currentPassword = document.getElementById("currentPassword").value.trim();
-        
-        if (!currentPassword) {
-          showModal('info', 'Password Required', 'Please enter your current password.');
-          return;
-        }
-
+      document.getElementById("newPasswordSection").classList.add("active");
+      document.getElementById("changePasswordBtn").style.display = "inline-block";
+      document.getElementById("changePasswordBtn").addEventListener("click", async function () {
+        if (this.disabled) return;
         try {
-          const created = createClientOrThrow();
-          const client = created.client;
-
-          const result = await client
-            .from("employee_profiles")
-            .select("login_password")
-            .eq("employee_number", session.employeeNumber)
-            .maybeSingle();
-
-          // Defensive: ensure we compare trimmed strings and handle nulls
-          const stored = result && result.data ? String(result.data.login_password || "").trim() : null;
-          console.debug('Password check', { employeeNumber: session.employeeNumber, entered: currentPassword, stored });
-
-          if (!stored || stored !== currentPassword) {
-            showModal('error', 'Incorrect Password', 'The current password you entered is incorrect. Please try again.');
-            return;
-          }
-
-          currentOtp = Math.floor(100000 + Math.random() * 900000).toString();
-          otpExpiry = Date.now() + (2 * 60 * 1000); // 2 minutes
-
-          const email = document.getElementById("email").value;
-          await sendOTPEmail(email, currentOtp);
-
-          showModal('success', 'OTP Sent', 'An OTP has been sent to your email address. Please check your inbox.');
-          
-          document.getElementById("otpSection").classList.add("active");
-          document.getElementById("newPasswordSection").classList.add("active");
-          document.getElementById("sendOtpBtn").style.display = "none";
-          const resendBtn = document.getElementById('resendOtpBtn');
-          if (resendBtn) { resendBtn.style.display = 'inline-block'; resendBtn.disabled = true; }
-          document.getElementById("changePasswordBtn").style.display = "inline-block";
-          // start OTP expiry timer based on expiry (in seconds)
-          const ttl = Math.max(0, Math.round((otpExpiry - Date.now()) / 1000));
-          if (ttl > 0) startOtpTimer(ttl);
-
-        } catch (err) {
-          showModal('error', 'Error', err.message || 'Failed to send OTP.');
-        }
-      });
-
-      // Resend OTP handler with 30s cooldown
-      document.getElementById('resendOtpBtn').addEventListener('click', async function() {
-        if (this.disabled) {
-          showModal('info', 'Please wait', 'Please wait until the OTP expires before resending.');
-          return;
-        }
-
-        try {
-          // generate a new OTP and extend expiry
-          currentOtp = Math.floor(100000 + Math.random() * 900000).toString();
-          otpExpiry = Date.now() + (2 * 60 * 1000);
-
-          const email = document.getElementById('email').value;
-          const sent = await sendOTPEmail(email, currentOtp);
-          if (!sent) {
-            showModal('error', 'Failed', 'Failed to resend OTP. Please try again later.');
-            return;
-          }
-          // disable resend until this OTP expires
+          const currentPassword = document.getElementById("currentPassword").value;
+          const newPassword = document.getElementById("newPassword").value;
+          if (newPassword !== document.getElementById("confirmPassword").value) throw new Error("Passwords do not match.");
+          if (newPassword.length < 8 || new TextEncoder().encode(newPassword).length > 72) throw new Error("Password must contain at least 8 characters and at most 72 UTF-8 bytes.");
           this.disabled = true;
-          this.style.display = 'inline-block';
-          // restart OTP expiry timer
-          const ttl2 = Math.max(0, Math.round((otpExpiry - Date.now()) / 1000));
-          if (ttl2 > 0) startOtpTimer(ttl2);
-
-          showModal('success', 'OTP Resent', 'A new OTP has been sent to your email address.');
-        } catch (err) {
-          console.error('Resend error', err);
-          showModal('error', 'Error', 'Failed to resend OTP.');
-        }
+          await OAPortal.request("change_password", { currentPassword, newPassword });
+          session.mustChangePassword = false;
+          saveSession(session);
+          ["currentPassword", "newPassword", "confirmPassword"].forEach(id => document.getElementById(id).value = "");
+          showModal("success", "Password Changed", "Your password has been updated.");
+        } catch (err) { showModal("error", "Password Change Failed", err.message); }
+        finally { this.disabled = false; }
       });
-
-      document.getElementById("changePasswordBtn").addEventListener("click", async function() {
-        const otpInput = document.getElementById("otpInput").value.trim();
-        const newPassword = document.getElementById("newPassword").value.trim();
-        const confirmPassword = document.getElementById("confirmPassword").value.trim();
-
-        if (!otpInput) {
-          showModal('info', 'OTP Required', 'Please enter the OTP sent to your email.');
-          return;
-        }
-
-        if (Date.now() > otpExpiry) {
-          showModal('error', 'OTP Expired', 'The OTP has expired. Please request a new one.');
-          return;
-        }
-
-        if (otpInput !== currentOtp) {
-          showModal('error', 'Invalid OTP', 'The OTP you entered is incorrect. Please try again.');
-          return;
-        }
-
-        if (!newPassword || newPassword.length < 6) {
-          showModal('info', 'Password Too Short', 'New password must be at least 6 characters long.');
-          return;
-        }
-
-        if (newPassword !== confirmPassword) {
-          showModal('error', 'Password Mismatch', 'The passwords you entered do not match. Please try again.');
-          return;
-        }
-
-        try {
-          const created = createClientOrThrow();
-          const client = created.client;
-
-          const result = await client
-            .from("employee_profiles")
-            .update({ login_password: newPassword })
-            .eq("employee_number", session.employeeNumber);
-
-          if (result.error) {
-            throw new Error(result.error.message || "Failed to update password.");
-          }
-
-          showModal('success', 'Success', 'Your password has been changed successfully!', function() {
-            // Reset form
-            document.getElementById("currentPassword").value = "";
-            document.getElementById("otpInput").value = "";
-            document.getElementById("newPassword").value = "";
-            document.getElementById("confirmPassword").value = "";
-            document.getElementById("otpSection").classList.remove("active");
-            document.getElementById("newPasswordSection").classList.remove("active");
-            document.getElementById("sendOtpBtn").style.display = "inline-block";
-            document.getElementById("changePasswordBtn").style.display = "none";
-            document.getElementById("resendOtpBtn").style.display = "none";
-              // hide/disable resend button and clear state
-              const resendBtnEl = document.getElementById('resendOtpBtn');
-              if (resendBtnEl) { resendBtnEl.style.display = 'none'; resendBtnEl.disabled = false; }
-            // stop OTP circular timer
-            stopOtpTimer();
-            currentOtp = null;
-            otpExpiry = null;
-          });
-
-        } catch (err) {
-          showModal('error', 'Error', err.message || 'Failed to change password.');
-        }
-      });
+      if (session && session.mustChangePassword) { document.getElementById("editModeToggle").checked = true; document.body.classList.add("edit-mode"); }
+      if (session && session.mustChangePassword) showModal("info", "Change Your Password", "Please change your temporary password before continuing.");
 
       document.getElementById("saveBtn").addEventListener("click", async function() {
         try {

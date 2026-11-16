@@ -68,8 +68,17 @@
 
   <div id="oa-shared-footer"></div>
   <script src="./shared-layout.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./auth-config.js"></script>
+  <script src="./portal-client.js"></script>
+  <script src="./attendance-utils.js"></script>
   <script>
+    const session = OAPortal.getSession();
+    if (!session || !session.sessionToken || session.role !== 'admin') window.location.href = './login.html';
+    document.getElementById('supabaseUrl').value = OAPortal.getConfig().supabaseUrl;
+    document.getElementById('supabaseAnonKey').value = OAPortal.getConfig().supabaseAnonKey;
+    document.getElementById('supabaseUrl').readOnly = true;
+    document.getElementById('supabaseAnonKey').type = 'password';
+    document.getElementById('supabaseAnonKey').readOnly = true;
     let parsedRows = [];
 
     function setMessage(text, isError) {
@@ -138,37 +147,7 @@
       return raw;
     }
 
-    function parseCsv(text) {
-      const lines = text.replace(/\r/g, '').split('\n').filter(Boolean);
-      if (!lines.length) return [];
-      const headers = lines[0].split(',').map(h => h.trim());
-      const rows = [];
-
-      for (let i = 1; i < lines.length; i++) {
-        const cols = lines[i].split(',');
-        const row = {};
-        headers.forEach((h, idx) => {
-          row[h] = (cols[idx] || '').trim();
-        });
-        const workDate = row.work_date ? String(row.work_date).trim() : '';
-        const clockIn = normalizeTimestamp(row.clock_in, workDate);
-        const clockOut = normalizeTimestamp(row.clock_out, workDate);
-        const inputHours = toNumberOrNull(row.hours);
-        const autoHours = calculateHours(clockIn, clockOut);
-
-        rows.push({
-          employee_number: row.employee_number,
-          full_name: row.full_name || null,
-          work_date: workDate,
-          clock_in: clockIn,
-          clock_out: clockOut,
-          hours: inputHours == null ? autoHours : inputHours,
-          status: row.status || 'present',
-          notes: row.notes || null
-        });
-      }
-      return rows;
-    }
+    function parseCsv(text) { return OAAttendance.timesheets(text); }
 
     function renderPreview(rows) {
       const body = document.getElementById('previewBody');
@@ -212,9 +191,6 @@
 
     document.getElementById('uploadBtn').addEventListener('click', async () => {
       try {
-        const supabaseUrl = document.getElementById('supabaseUrl').value.trim();
-        const supabaseAnonKey = document.getElementById('supabaseAnonKey').value.trim();
-        if (!supabaseUrl || !supabaseAnonKey) throw new Error('Supabase URL and Anon Key are required.');
 
         if (!parsedRows.length) {
           const csvText = await getCsvText();
@@ -222,7 +198,7 @@
         }
         if (!parsedRows.length) throw new Error('CSV has no data rows.');
 
-        const supabase = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
+        const supabase = OAPortal;
 
         const { error } = await supabase
           .from('employee_timesheets')
