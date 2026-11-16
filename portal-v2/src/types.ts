@@ -18,6 +18,8 @@ export interface EmployeeProfile {
   employee_number: string
   full_name: string
   role: 'employee' | 'admin' | 'reviewer'
+  active: boolean
+  status: 'pending' | 'active' | 'rejected' | 'exited'
   department: { name: string } | null
   work_category: { name: string; regular_minutes: number } | null
 }

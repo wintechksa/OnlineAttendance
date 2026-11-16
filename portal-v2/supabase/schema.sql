@@ -31,11 +31,14 @@ create table if not exists public.ts_employee_profiles (
   user_id uuid primary key references auth.users(id) on delete cascade,
   employee_number text not null unique check (employee_number = upper(employee_number)),
   full_name text not null check (length(trim(full_name)) >= 2),
-  department_id uuid not null references public.ts_departments(id),
-  work_category_id uuid not null references public.ts_work_categories(id),
+  department_id uuid references public.ts_departments(id),
+  work_category_id uuid references public.ts_work_categories(id),
   timestation_employee_id text unique,
   role public.app_role not null default 'employee',
   active boolean not null default true,
+  status text not null default 'active' check (status in ('pending', 'active', 'rejected', 'exited')),
+  approved_by uuid references public.ts_employee_profiles(user_id) on delete set null,
+  approved_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -115,6 +118,16 @@ create table if not exists public.ts_timesheet_confirmations (
   unique (employee_id, pay_period_id)
 );
 
+create table if not exists public.ts_employee_reviews (
+  id uuid primary key default gen_random_uuid(),
+  employee_id uuid not null default auth.uid() references public.ts_employee_profiles(user_id) on delete cascade,
+  rating smallint not null check (rating between 1 and 5),
+  review_text text not null check (length(trim(review_text)) between 5 and 800),
+  visible boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists public.ts_audit_log (
   id bigint generated always as identity primary key,
   actor_id uuid,
@@ -144,15 +157,19 @@ create index if not exists corrections_employee_date_idx on public.ts_correction
 create index if not exists corrections_pending_idx on public.ts_correction_requests(status, created_at) where status = 'pending';
 create index if not exists ts_profiles_department_idx on public.ts_employee_profiles(department_id);
 create index if not exists ts_profiles_category_idx on public.ts_employee_profiles(work_category_id);
+create index if not exists ts_profiles_status_idx on public.ts_employee_profiles(status, created_at desc);
+create index if not exists ts_profiles_approved_by_idx on public.ts_employee_profiles(approved_by);
+create index if not exists ts_reviews_employee_idx on public.ts_employee_reviews(employee_id, created_at desc);
 create index if not exists ts_corrections_reviewer_idx on public.ts_correction_requests(reviewer_id);
 create index if not exists ts_confirmations_period_idx on public.ts_timesheet_confirmations(pay_period_id);
+create index if not exists ts_reviews_visible_idx on public.ts_employee_reviews(visible, created_at desc);
 create index if not exists ts_sync_requested_by_idx on public.ts_sync_runs(requested_by);
 
 create or replace function private.is_reviewer_or_admin()
 returns boolean language sql stable security definer set search_path = '' as $$
   select exists (
     select 1 from public.ts_employee_profiles p
-    where p.user_id = (select auth.uid()) and p.active and p.role in ('reviewer', 'admin')
+    where p.user_id = (select auth.uid()) and p.active and p.status = 'active' and p.role in ('reviewer', 'admin')
   );
 $$;
 
@@ -160,15 +177,25 @@ create or replace function private.is_admin()
 returns boolean language sql stable security definer set search_path = '' as $$
   select exists (
     select 1 from public.ts_employee_profiles p
-    where p.user_id = (select auth.uid()) and p.active and p.role = 'admin'
+    where p.user_id = (select auth.uid()) and p.active and p.status = 'active' and p.role = 'admin'
+  );
+$$;
+
+create or replace function private.is_active_employee()
+returns boolean language sql stable security definer set search_path = '' as $$
+  select exists (
+    select 1 from public.ts_employee_profiles p
+    where p.user_id = (select auth.uid()) and p.active and p.status = 'active'
   );
 $$;
 
 revoke all on function private.is_reviewer_or_admin() from public, anon;
 revoke all on function private.is_admin() from public, anon;
+revoke all on function private.is_active_employee() from public, anon;
 grant usage on schema private to authenticated;
 grant execute on function private.is_reviewer_or_admin() to authenticated;
 grant execute on function private.is_admin() to authenticated;
+grant execute on function private.is_active_employee() to authenticated;
 
 create or replace function private.set_updated_at()
 returns trigger language plpgsql set search_path = '' as $$
@@ -195,6 +222,8 @@ drop trigger if exists attendance_updated_at on public.ts_attendance_entries;
 create trigger attendance_updated_at before update on public.ts_attendance_entries for each row execute function private.set_updated_at();
 drop trigger if exists corrections_updated_at on public.ts_correction_requests;
 create trigger corrections_updated_at before update on public.ts_correction_requests for each row execute function private.set_updated_at();
+drop trigger if exists reviews_updated_at on public.ts_employee_reviews;
+create trigger reviews_updated_at before update on public.ts_employee_reviews for each row execute function private.set_updated_at();
 drop trigger if exists audit_attendance on public.ts_attendance_entries;
 create trigger audit_attendance after insert or update or delete on public.ts_attendance_entries for each row execute function private.write_audit_log();
 drop trigger if exists audit_corrections on public.ts_correction_requests;
@@ -209,6 +238,7 @@ alter table public.ts_timesheet_settings enable row level security;
 alter table public.ts_attendance_entries enable row level security;
 alter table public.ts_correction_requests enable row level security;
 alter table public.ts_timesheet_confirmations enable row level security;
+alter table public.ts_employee_reviews enable row level security;
 alter table public.ts_audit_log enable row level security;
 alter table public.ts_sync_runs enable row level security;
 
@@ -216,12 +246,13 @@ alter table public.ts_sync_runs enable row level security;
 revoke all on public.ts_departments, public.ts_work_categories, public.ts_employee_profiles,
   public.ts_pay_periods, public.ts_holidays, public.ts_timesheet_settings,
   public.ts_attendance_entries, public.ts_correction_requests,
-  public.ts_timesheet_confirmations, public.ts_audit_log, public.ts_sync_runs
+  public.ts_timesheet_confirmations, public.ts_employee_reviews, public.ts_audit_log, public.ts_sync_runs
 from anon, authenticated;
 grant select on public.ts_departments, public.ts_work_categories, public.ts_pay_periods, public.ts_holidays to authenticated;
 grant select on public.ts_employee_profiles, public.ts_attendance_entries, public.ts_correction_requests, public.ts_timesheet_confirmations to authenticated;
 grant insert on public.ts_correction_requests, public.ts_timesheet_confirmations to authenticated;
 grant update on public.ts_correction_requests to authenticated;
+grant select, insert, update, delete on public.ts_employee_reviews to authenticated;
 grant usage, select on all sequences in schema public to service_role;
 
 create policy "authenticated read departments" on public.ts_departments for select to authenticated using (true);
@@ -233,14 +264,15 @@ create policy "employee reads own profile" on public.ts_employee_profiles for se
 using ((select auth.uid()) = user_id or (select private.is_reviewer_or_admin()));
 
 create policy "employee reads own attendance" on public.ts_attendance_entries for select to authenticated
-using ((select auth.uid()) = employee_id or (select private.is_reviewer_or_admin()));
+using (((select auth.uid()) = employee_id and (select private.is_active_employee())) or (select private.is_reviewer_or_admin()));
 
 create policy "employee reads own corrections" on public.ts_correction_requests for select to authenticated
-using ((select auth.uid()) = employee_id or (select private.is_reviewer_or_admin()));
+using (((select auth.uid()) = employee_id and (select private.is_active_employee())) or (select private.is_reviewer_or_admin()));
 
 create policy "employee requests correction before cutoff" on public.ts_correction_requests for insert to authenticated
 with check (
   (select auth.uid()) = employee_id
+  and (select private.is_active_employee())
   and status = 'pending' and reviewer_id is null
   and exists (
     select 1 from public.ts_pay_periods pp
@@ -252,11 +284,12 @@ with check (
 create policy "correction updates by owner or reviewer" on public.ts_correction_requests for update to authenticated
 using (
   status = 'pending'
-  and ((select auth.uid()) = employee_id or (select private.is_reviewer_or_admin()))
+  and (((select auth.uid()) = employee_id and (select private.is_active_employee())) or (select private.is_reviewer_or_admin()))
 )
 with check (
   (
     (select auth.uid()) = employee_id
+    and (select private.is_active_employee())
     and status = 'cancelled' and reviewer_id is null and reviewed_at is null
   )
   or (
@@ -267,13 +300,24 @@ with check (
 );
 
 create policy "employee reads own confirmations" on public.ts_timesheet_confirmations for select to authenticated
-using ((select auth.uid()) = employee_id or (select private.is_reviewer_or_admin()));
+using (((select auth.uid()) = employee_id and (select private.is_active_employee())) or (select private.is_reviewer_or_admin()));
 
 create policy "employee confirms open period" on public.ts_timesheet_confirmations for insert to authenticated
 with check (
   (select auth.uid()) = employee_id
+  and (select private.is_active_employee())
   and exists (select 1 from public.ts_pay_periods pp where pp.id = pay_period_id and pp.status = 'open' and now() <= pp.cutoff_at)
 );
+
+create policy "active employees read visible reviews" on public.ts_employee_reviews for select to authenticated
+using ((select private.is_active_employee()) and (visible or employee_id = (select auth.uid())));
+create policy "active employees post reviews" on public.ts_employee_reviews for insert to authenticated
+with check ((select private.is_active_employee()) and employee_id = (select auth.uid()) and visible);
+create policy "employees edit own reviews" on public.ts_employee_reviews for update to authenticated
+using ((select private.is_active_employee()) and employee_id = (select auth.uid()))
+with check ((select private.is_active_employee()) and employee_id = (select auth.uid()));
+create policy "employees delete own reviews" on public.ts_employee_reviews for delete to authenticated
+using (((select private.is_active_employee()) and employee_id = (select auth.uid())) or (select private.is_admin()));
 
 -- No browser policies exist for audit_log, sync_runs, settings, or attendance writes.
 -- Server-side service_role performs sync and approved corrections; it must never reach the browser.

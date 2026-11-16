@@ -1,10 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
 
-const [employeeNumber, password, fullName, departmentName, categoryName, timeStationEmployeeId = ''] = process.argv.slice(2)
+const [employeeNumber, password, fullName, departmentName, categoryName, timeStationEmployeeId = '', role = 'employee'] = process.argv.slice(2)
 if (![employeeNumber, password, fullName, departmentName, categoryName].every(Boolean)) {
-  console.error('Usage: node scripts/provision-user.mjs EMPLOYEE_ID PASSWORD "Full Name" "DEPARTMENT" "Workers|Staff|Safety" [TIMESTATION_EMPLOYEE_ID]')
+  console.error('Usage: node scripts/provision-user.mjs EMPLOYEE_ID PASSWORD "Full Name" "DEPARTMENT" "Workers|Staff|Safety" [TIMESTATION_EMPLOYEE_ID] [employee|reviewer|admin]')
   process.exit(1)
 }
+if (!['employee', 'reviewer', 'admin'].includes(role)) throw new Error('Role must be employee, reviewer, or admin.')
 if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
   console.error('Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in the current shell. Do not save the service key in VITE_ variables.')
   process.exit(1)
@@ -24,6 +25,7 @@ const { error: profileError } = await supabase.from('ts_employee_profiles').inse
   user_id: created.user.id, employee_number: normalized, full_name: fullName,
   department_id: department.id, work_category_id: category.id,
   timestation_employee_id: timeStationEmployeeId || null,
+  role, status: 'active', active: true, approved_at: new Date().toISOString(),
 })
 if (profileError) {
   await supabase.auth.admin.deleteUser(created.user.id)

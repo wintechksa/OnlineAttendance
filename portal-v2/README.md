@@ -5,6 +5,10 @@ Secure, mobile-friendly employee timesheet portal for 100–300 employees. This 
 ## Included now
 
 - Employee ID + password sign-in backed by Supabase Auth. Employee IDs map to internal synthetic emails; employees never need to know or enter an email address.
+- Employee self-registration with a pending status; only a verified administrator can approve and assign department, work category, and role.
+- Role-aware admin portal for approvals, rejections, exited-employee deactivation, and confirmed permanent account deletion.
+- A new internal portal home with anonymous employee feedback and 1–5 star reviews. The legacy repository homepage is preserved.
+- The supplied WINTECH logo is used on sign-in, account status, and portal navigation.
 - Nine departments: ADMIN, BUS DRIVER, CONSTRUCTION, DRIVERS, EQUIPMENT, QA/QC, SAFETY, HDEC, and MARJAN.
 - Work categories: Workers (8h), Staff (10h), and Safety (12h).
 - Timesheet columns: DATE, AM IN/OUT, PM IN/OUT, BASIC, OT, and TOTAL HRS.
@@ -18,7 +22,8 @@ Secure, mobile-friendly employee timesheet portal for 100–300 employees. This 
 ## Security model
 
 - The browser receives only the Supabase publishable key. It never receives the service role or TimeStation API key.
-- Every public table has RLS enabled. Employees can read only their own profile, attendance, corrections, and confirmations. Reviewers/admins are checked against server-controlled profile data, not user-editable metadata.
+- Every new public table has RLS enabled. Pending, rejected, and exited accounts cannot read attendance, corrections, confirmations, or reviews. Active employees can read only their own personnel/timesheet records; internal star reviews do not expose employee names.
+- Signup and account administration run only through Cloudflare server functions. The service role key is never included in browser code.
 - The TimeStation function accepts only `POST`, validates a real Supabase access token, checks reviewer/admin role, calls only TimeStation's read-only `GET /v1.2/shifts`, and limits each request to 31 days.
 - Broad default grants are revoked before narrow grants are added.
 - The previously shared TimeStation API key must be revoked and replaced. Never reuse it in this repository, browser variables, GitHub, screenshots, or chat.
@@ -42,8 +47,8 @@ npm run build
 
 1. Create/select the Supabase project.
 2. Review and run `supabase/schema.sql`, then `supabase/seed.sql`.
-3. Disable public self-signup; employees should be provisioned by an administrator.
-4. Provision each employee from a protected admin environment with `scripts/provision-user.mjs`.
+3. Keep direct public Auth signup disabled; the portal uses its protected server signup endpoint and creates accounts in `pending` state.
+4. Create the first admin from a protected environment with `scripts/provision-user.mjs`; later accounts can request access through the portal.
 5. Set real `timestation_employee_id` mappings on employee profiles.
 6. Verify RLS using separate employee and reviewer test accounts before production use.
 
@@ -68,4 +73,3 @@ Current connection status (2026-11-15):
 - Supabase: secure schema and seed applied to the `Wintech Attendance` project.
 - Cloudflare: staging preview deployed at `https://staging.wintech-timesheet-portal.pages.dev`; production promotion is intentionally pending private secrets and employee setup.
 - TimeStation: not connected; the previously shared key must be revoked and a new key stored only as a Cloudflare secret.
-

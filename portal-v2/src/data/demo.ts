@@ -5,6 +5,8 @@ export const demoProfile: EmployeeProfile = {
   employee_number: 'WT-S-004',
   full_name: 'Maynard Perey',
   role: 'employee',
+  active: true,
+  status: 'active',
   department: { name: 'ADMIN' },
   work_category: { name: 'Staff', regular_minutes: 600 },
 }

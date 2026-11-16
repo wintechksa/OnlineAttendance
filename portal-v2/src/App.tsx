@@ -1,142 +1,110 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { demoProfile, demoRows } from './data/demo'
+import { normalizeEmployeeId } from './lib/account'
 import { employeeLoginEmail, isSupabaseConfigured, supabase } from './lib/supabase'
 import { minutesToHours } from './lib/timeCalculations'
 import type { EmployeeProfile, TimesheetRow } from './types'
 
-type View = 'timesheet' | 'corrections'
+type View = 'home' | 'timesheet' | 'corrections' | 'admin'
+type Correction = { id: string; date: string; reason: string; status: string }
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [demo, setDemo] = useState(!isSupabaseConfigured)
   const [loading, setLoading] = useState(true)
-
   useEffect(() => {
     if (!supabase) { setLoading(false); return }
     supabase.auth.getSession().then(({ data }) => { setSession(data.session); setLoading(false) })
     const { data } = supabase.auth.onAuthStateChange((_event, next) => setSession(next))
     return () => data.subscription.unsubscribe()
   }, [])
-
   if (loading) return <div className="splash">Loading WINTECH portal…</div>
   if (!session && !demo) return <Login onDemo={() => setDemo(true)} />
   return <Portal demo={demo} session={session} onExit={() => demo ? setDemo(false) : supabase?.auth.signOut()} />
 }
 
-function Login({ onDemo }: { onDemo: () => void }) {
-  const [employeeId, setEmployeeId] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [busy, setBusy] = useState(false)
+function Logo({ compact = false }: { compact?: boolean }) { return <img className={compact ? 'brand-logo compact-logo' : 'brand-logo'} src="/wintech-logo.jpg" alt="WINTECH — Welding Innovation Technology" /> }
 
+function Login({ onDemo }: { onDemo: () => void }) {
+  const [mode, setMode] = useState<'login' | 'signup'>('login')
+  const [employeeId, setEmployeeId] = useState(''); const [fullName, setFullName] = useState('')
+  const [password, setPassword] = useState(''); const [confirmPassword, setConfirmPassword] = useState('')
+  const [message, setMessage] = useState(''); const [error, setError] = useState(''); const [busy, setBusy] = useState(false)
   async function submit(event: FormEvent) {
-    event.preventDefault(); setError(''); setBusy(true)
-    const { error: authError } = await supabase!.auth.signInWithPassword({
-      email: employeeLoginEmail(employeeId), password,
-    })
-    if (authError) setError('Hindi tama ang employee ID o password.')
+    event.preventDefault(); setError(''); setMessage(''); setBusy(true)
+    if (mode === 'login') {
+      const { error: authError } = await supabase!.auth.signInWithPassword({ email: employeeLoginEmail(employeeId), password })
+      if (authError) setError('Hindi tama ang employee ID/password, o hindi pa approved ang account.')
+    } else if (password !== confirmPassword) setError('Passwords do not match.')
+    else {
+      const response = await fetch('/api/auth/signup', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ employeeId: normalizeEmployeeId(employeeId), fullName, password }) })
+      const result = await response.json().catch(() => ({})) as { error?: string; message?: string }
+      if (!response.ok) setError(result.error ?? 'Registration could not be completed.')
+      else { setMessage(result.message ?? 'Registration received for approval.'); setMode('login'); setPassword(''); setConfirmPassword('') }
+    }
     setBusy(false)
   }
-
-  return <main className="login-page">
-    <section className="login-brand">
-      <div className="logo-mark">W</div>
-      <p className="eyebrow">WINTECH</p>
-      <h1>Your time,<br />clearly accounted.</h1>
-      <p>Review attendance, confirm your timesheet, and request corrections before cutoff.</p>
-      <div className="privacy-note"><span>◆</span><div><strong>Private by design</strong><br />Only you and authorized reviewers can see your records.</div></div>
-    </section>
-    <section className="login-panel">
-      <form className="login-card" onSubmit={submit}>
-        <p className="eyebrow dark">EMPLOYEE PORTAL</p>
-        <h2>Welcome back</h2>
-        <p className="muted">Sign in using your WINTECH employee ID.</p>
-        <label>Employee ID<input autoComplete="username" value={employeeId} onChange={e => setEmployeeId(e.target.value)} placeholder="e.g. WT-S-004" required /></label>
-        <label>Password<input type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Enter your password" required /></label>
-        {error && <p className="error" role="alert">{error}</p>}
-        <button className="primary" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
-        <button type="button" className="text-button" onClick={onDemo}>Preview with sample data</button>
-      </form>
-    </section>
-  </main>
+  return <main className="login-page"><section className="login-brand"><Logo /><p className="eyebrow">WINTECH EMPLOYEE PORTAL</p><h1>Your workday,<br />clearly accounted.</h1><p>Attendance, timesheets, corrections, and employee feedback in one secure place.</p><div className="privacy-note"><span>◆</span><div><strong>Private by design</strong><br />Only employees and authorized reviewers can access portal records.</div></div></section><section className="login-panel"><form className="login-card" onSubmit={submit}>
+    <p className="eyebrow dark">{mode === 'login' ? 'EMPLOYEE SIGN IN' : 'REQUEST AN ACCOUNT'}</p><h2>{mode === 'login' ? 'Welcome back' : 'Employee signup'}</h2><p className="muted">{mode === 'login' ? 'Use your WINTECH employee ID.' : 'An administrator will verify and approve every request.'}</p>
+    <label>Employee ID<input autoComplete="username" value={employeeId} onChange={e => setEmployeeId(e.target.value)} placeholder="e.g. WT-S-004" required /></label>{mode === 'signup' && <label>Full name<input autoComplete="name" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Name as shown in employee records" required /></label>}
+    <label>Password<input type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={mode === 'signup' ? 10 : undefined} value={password} onChange={e => setPassword(e.target.value)} required /></label>{mode === 'signup' && <label>Confirm password<input type="password" autoComplete="new-password" minLength={10} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required /></label>}
+    {error && <p className="error" role="alert">{error}</p>}{message && <p className="success" role="status">{message}</p>}<button className="primary" disabled={busy}>{busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Submit for approval'}</button><button type="button" className="text-button" onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setError(''); setMessage('') }}>{mode === 'login' ? 'New employee? Request an account' : 'Already registered? Sign in'}</button>{mode === 'login' && <button type="button" className="text-button" onClick={onDemo}>Preview with sample data</button>}
+  </form></section></main>
 }
 
 function Portal({ demo, session, onExit }: { demo: boolean; session: Session | null; onExit: () => void }) {
-  const [view, setView] = useState<View>('timesheet')
-  const [profile, setProfile] = useState<EmployeeProfile>(demoProfile)
-  const [rows, setRows] = useState<TimesheetRow[]>(demoRows)
-  const [corrections, setCorrections] = useState<Array<{ id: string; date: string; reason: string; status: string }>>([])
-  const [period, setPeriod] = useState<{ id: string; starts_on: string; ends_on: string; cutoff_at: string } | null>(demo ? { id: 'demo', starts_on: '2026-11-01', ends_on: '2026-11-30', cutoff_at: '2026-11-30T14:00:00Z' } : null)
-  const [notice, setNotice] = useState('')
-
+  const [view, setView] = useState<View>('home'); const [profile, setProfile] = useState<EmployeeProfile | null>(demo ? demoProfile : null)
+  const [loading, setLoading] = useState(!demo); const [rows, setRows] = useState<TimesheetRow[]>(demoRows); const [corrections, setCorrections] = useState<Correction[]>([])
+  const [period, setPeriod] = useState<{ id: string; starts_on: string; ends_on: string; cutoff_at: string } | null>(demo ? { id: 'demo', starts_on: '2026-11-01', ends_on: '2026-11-30', cutoff_at: '2026-11-30T14:00:00Z' } : null); const [notice, setNotice] = useState('')
   useEffect(() => {
     if (demo || !session || !supabase) return
-    Promise.all([
-      supabase.from('ts_employee_profiles').select('user_id, employee_number, full_name, role, department:ts_departments(name), work_category:ts_work_categories(name, regular_minutes)').eq('user_id', session.user.id).single(),
-      supabase.from('ts_attendance_entries').select('*').order('work_date', { ascending: false }).limit(31),
-      supabase.from('ts_correction_requests').select('id, work_date, reason, status').order('created_at', { ascending: false }),
-      supabase.from('ts_pay_periods').select('id, starts_on, ends_on, cutoff_at').eq('status', 'open').lte('starts_on', new Date().toISOString().slice(0, 10)).gte('ends_on', new Date().toISOString().slice(0, 10)).limit(1).maybeSingle(),
-    ]).then(([p, a, c, pp]) => {
-      if (p.data) setProfile(p.data as unknown as EmployeeProfile)
+    setLoading(true)
+    supabase.from('ts_employee_profiles').select('user_id, employee_number, full_name, role, active, status, department:ts_departments(name), work_category:ts_work_categories(name, regular_minutes)').eq('user_id', session.user.id).single().then(async p => {
+      const loaded = p.data as unknown as EmployeeProfile | null; setProfile(loaded); setLoading(false)
+      if (!loaded || loaded.status !== 'active' || !loaded.active) return
+      const [a, c, pp] = await Promise.all([supabase!.from('ts_attendance_entries').select('*').order('work_date', { ascending: false }).limit(31), supabase!.from('ts_correction_requests').select('id, work_date, reason, status').order('created_at', { ascending: false }), supabase!.from('ts_pay_periods').select('id, starts_on, ends_on, cutoff_at').eq('status', 'open').lte('starts_on', new Date().toISOString().slice(0, 10)).gte('ends_on', new Date().toISOString().slice(0, 10)).limit(1).maybeSingle()])
       if (a.data) setRows(a.data.map(x => ({ id: x.id, workDate: x.work_date, amIn: x.am_in, amOut: x.am_out, pmIn: x.pm_in, pmOut: x.pm_out, basicMinutes: x.basic_minutes, overtimeMinutes: x.overtime_minutes, totalMinutes: x.total_minutes, status: x.is_holiday ? 'holiday' : x.is_friday ? 'friday' : (!x.am_in || !x.pm_out ? 'incomplete' : 'complete') })))
-      if (c.data) setCorrections(c.data.map(x => ({ id: x.id, date: x.work_date, reason: x.reason, status: x.status })))
-      if (pp.data) setPeriod(pp.data)
+      if (c.data) setCorrections(c.data.map(x => ({ id: x.id, date: x.work_date, reason: x.reason, status: x.status }))); if (pp.data) setPeriod(pp.data)
     })
   }, [demo, session])
-
   const totals = useMemo(() => rows.reduce((sum, row) => ({ basic: sum.basic + row.basicMinutes, ot: sum.ot + row.overtimeMinutes, total: sum.total + row.totalMinutes }), { basic: 0, ot: 0, total: 0 }), [rows])
-
-  async function confirm() {
-    if (demo) { setNotice('Demo only: confirmation was not saved.'); return }
-    if (!period || !supabase) { setNotice('No open pay period is available.'); return }
-    const { error } = await supabase.from('ts_timesheet_confirmations').upsert({ pay_period_id: period.id }, { onConflict: 'employee_id,pay_period_id', ignoreDuplicates: true })
-    setNotice(error ? `Could not confirm: ${error.message}` : 'Timesheet confirmed successfully.')
-  }
-
-  return <div className="app-shell">
-    <aside>
-      <div><div className="sidebar-logo"><span>W</span><strong>WINTECH</strong></div>
-        <nav><button className={view === 'timesheet' ? 'active' : ''} onClick={() => setView('timesheet')}>▦ <span>Timesheet</span></button><button className={view === 'corrections' ? 'active' : ''} onClick={() => setView('corrections')}>✎ <span>Corrections</span>{corrections.length > 0 && <b>{corrections.length}</b>}</button></nav>
-      </div>
-      <button className="signout" onClick={onExit}>↪ <span>Sign out</span></button>
-    </aside>
-    <main className="portal-main">
-      <header><div><p className="eyebrow dark">EMPLOYEE SELF-SERVICE</p><h1>{view === 'timesheet' ? 'My timesheet' : 'Correction requests'}</h1></div><div className="profile"><div><strong>{profile.full_name}</strong><span>{profile.employee_number} · {profile.department?.name}</span></div><div className="avatar">{profile.full_name.split(' ').map(n => n[0]).slice(0, 2).join('')}</div></div></header>
-      {demo && <div className="demo-banner"><span>Sample data</span> This preview is not connected to Supabase or TimeStation.</div>}
-      {view === 'timesheet' ? <>
-        <section className="period-bar"><div><span>PAY PERIOD</span><strong>{period ? `${formatShortDate(period.starts_on)} – ${formatShortDate(period.ends_on)}` : 'No open period'}</strong></div><div className="cutoff"><span>CUTOFF</span><strong>{period ? new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Riyadh' }).format(new Date(period.cutoff_at)) : '—'}</strong></div><button aria-label="Previous period">‹</button><button aria-label="Next period">›</button></section>
-        <section className="summary-grid"><Summary label="Basic hours" value={minutesToHours(totals.basic)} tone="navy" /><Summary label="Overtime" value={minutesToHours(totals.ot)} tone="orange" /><Summary label="Total hours" value={minutesToHours(totals.total)} tone="green" /></section>
-        <section className="table-card"><div className="table-heading"><div><h2>Attendance details</h2><p>{profile.work_category?.name} · {minutesToHours(profile.work_category?.regular_minutes ?? 0)} regular hrs/day</p></div><span className="synced">● TimeStation · sample</span></div>
-          <div className="table-scroll"><table><thead><tr><th>Date</th><th>AM In</th><th>AM Out</th><th>PM In</th><th>PM Out</th><th>Basic</th><th>OT</th><th>Total hrs</th><th>Status</th></tr></thead><tbody>{rows.map(row => <tr key={row.id}><td><strong>{formatDate(row.workDate)}</strong></td><td>{row.amIn ?? '—'}</td><td>{row.amOut ?? '—'}</td><td>{row.pmIn ?? '—'}</td><td>{row.pmOut ?? '—'}</td><td>{minutesToHours(row.basicMinutes)}</td><td className="ot">{minutesToHours(row.overtimeMinutes)}</td><td><strong>{minutesToHours(row.totalMinutes)}</strong></td><td><span className={`status ${row.status}`}>{row.status === 'complete' ? 'Complete' : row.status === 'incomplete' ? 'Needs review' : row.status}</span></td></tr>)}</tbody></table></div>
-        </section>
-        <section className="confirm-card"><div><h3>Everything looks correct?</h3><p>Confirm before cutoff. Correction requests remain tracked for authorized review.</p></div><button className="primary compact" onClick={confirm}>Confirm timesheet</button></section>
-        {notice && <div className="toast" role="status">{notice}</div>}
-      </> : <Corrections demo={demo} reviewerId={session?.user.id ?? null} canReview={profile.role === 'admin' || profile.role === 'reviewer'} corrections={corrections} setCorrections={setCorrections} />}
-    </main>
-  </div>
+  if (loading) return <div className="splash">Checking your employee account…</div>
+  if (!profile || profile.status !== 'active' || !profile.active) return <AccountStatus profile={profile} onExit={onExit} />
+  async function confirm() { if (demo) { setNotice('Demo only: confirmation was not saved.'); return } if (!period || !supabase) { setNotice('No open pay period is available.'); return } const { error } = await supabase.from('ts_timesheet_confirmations').upsert({ pay_period_id: period.id }, { onConflict: 'employee_id,pay_period_id', ignoreDuplicates: true }); setNotice(error ? `Could not confirm: ${error.message}` : 'Timesheet confirmed successfully.') }
+  const titles: Record<View, string> = { home: 'Home', timesheet: 'My timesheet', corrections: 'Correction requests', admin: 'Admin portal' }
+  return <div className="app-shell"><aside><div><div className="sidebar-logo"><Logo compact /></div><nav><Nav active={view === 'home'} onClick={() => setView('home')} icon="⌂" label="Home" /><Nav active={view === 'timesheet'} onClick={() => setView('timesheet')} icon="▦" label="Timesheet" /><Nav active={view === 'corrections'} onClick={() => setView('corrections')} icon="✎" label="Corrections" badge={corrections.length} />{profile.role === 'admin' && <Nav active={view === 'admin'} onClick={() => setView('admin')} icon="⚙" label="Admin" />}</nav></div><button className="signout" onClick={onExit}>↪ <span>Sign out</span></button></aside><main className="portal-main"><header><div><p className="eyebrow dark">{profile.role === 'admin' ? 'ADMIN & EMPLOYEE ACCESS' : 'EMPLOYEE SELF-SERVICE'}</p><h1>{titles[view]}</h1></div><div className="profile"><div><strong>{profile.full_name}</strong><span>{profile.employee_number} · {profile.department?.name ?? 'Pending assignment'}</span></div><div className="avatar">{initials(profile.full_name)}</div></div></header>{demo && <div className="demo-banner"><span>Sample data</span> This preview is not connected to Supabase or TimeStation.</div>}{view === 'home' && <Home profile={profile} totals={totals} rows={rows} demo={demo} session={session} setView={setView} />}{view === 'timesheet' && <Timesheet profile={profile} period={period} rows={rows} totals={totals} confirm={confirm} notice={notice} />}{view === 'corrections' && <Corrections demo={demo} reviewerId={session?.user.id ?? null} canReview={profile.role === 'admin' || profile.role === 'reviewer'} corrections={corrections} setCorrections={setCorrections} />}{view === 'admin' && profile.role === 'admin' && session && <AdminPortal session={session} />}</main></div>
 }
 
-function Summary({ label, value, tone }: { label: string; value: string; tone: string }) { return <article className={`summary ${tone}`}><span>{label}</span><strong>{value}</strong><small>hours this period</small></article> }
+function Nav({ active, onClick, icon, label, badge = 0 }: { active: boolean; onClick: () => void; icon: string; label: string; badge?: number }) { return <button className={active ? 'active' : ''} onClick={onClick}>{icon} <span>{label}</span>{badge > 0 && <b>{badge}</b>}</button> }
+function AccountStatus({ profile, onExit }: { profile: EmployeeProfile | null; onExit: () => void }) { const status = profile?.status ?? 'pending'; const copy = status === 'rejected' ? 'This registration was not approved. Please contact WINTECH Admin.' : status === 'exited' ? 'This account is no longer active. Please contact WINTECH Admin if this is incorrect.' : 'Your employee registration is waiting for admin verification and approval.'; return <main className="status-page"><section><Logo /><span className={`status ${status}`}>{status}</span><h1>{status === 'pending' ? 'Approval pending' : 'Account unavailable'}</h1><p>{copy}</p><button className="primary" onClick={onExit}>Back to sign in</button></section></main> }
 
-function Corrections({ demo, reviewerId, canReview, corrections, setCorrections }: { demo: boolean; reviewerId: string | null; canReview: boolean; corrections: Array<{ id: string; date: string; reason: string; status: string }>; setCorrections: React.Dispatch<React.SetStateAction<Array<{ id: string; date: string; reason: string; status: string }>>> }) {
-  const [date, setDate] = useState('2026-11-12'); const [reason, setReason] = useState('')
-  async function submit(event: FormEvent) {
-    event.preventDefault()
-    if (!reason.trim()) return
-    if (!demo && supabase) await supabase.from('ts_correction_requests').insert({ work_date: date, reason, requested_changes: {} })
-    setCorrections(current => [{ id: crypto.randomUUID(), date, reason, status: 'pending' }, ...current]); setReason('')
-  }
-  async function review(id: string, status: 'approved' | 'rejected') {
-    if (!demo && supabase && reviewerId) {
-      const { error } = await supabase.from('ts_correction_requests').update({ status, reviewer_id: reviewerId, reviewed_at: new Date().toISOString() }).eq('id', id).eq('status', 'pending')
-      if (error) return
-    }
-    setCorrections(current => current.map(item => item.id === id ? { ...item, status } : item))
-  }
-  return <div className="correction-layout"><form className="correction-form" onSubmit={submit}><h2>Request a correction</h2><p className="muted">Describe the missing or incorrect time. An authorized reviewer must approve every change.</p><label>Work date<input type="date" value={date} onChange={e => setDate(e.target.value)} required /></label><label>What needs correction?<textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="Example: Missing PM out at 6:00 PM" required /></label><button className="primary">Submit request</button></form><section className="request-list"><h2>{canReview ? 'Requests to review' : 'Request history'}</h2>{corrections.length === 0 ? <p className="empty">No correction requests yet.</p> : corrections.map(item => <article key={item.id}><div><strong>{formatDate(item.date)}</strong><p>{item.reason}</p></div><div className="review-actions"><span className={`status ${item.status}`}>{item.status}</span>{canReview && item.status === 'pending' && <><button onClick={() => review(item.id, 'approved')}>Approve</button><button onClick={() => review(item.id, 'rejected')}>Reject</button></>}</div></article>)}</section></div>
+function Home({ profile, totals, rows, demo, session, setView }: { profile: EmployeeProfile; totals: { basic: number; ot: number; total: number }; rows: TimesheetRow[]; demo: boolean; session: Session | null; setView: (v: View) => void }) { return <><section className="home-hero"><div><p className="eyebrow">WELCOME TO WINTECH</p><h2>Hello, {profile.full_name.split(' ')[0]}.</h2><p>Your latest attendance summary and employee feedback are ready.</p><button onClick={() => setView('timesheet')}>Open my timesheet →</button></div><div className="hero-mark">W</div></section><section className="summary-grid"><Summary label="Basic hours" value={minutesToHours(totals.basic)} tone="navy" /><Summary label="Overtime" value={minutesToHours(totals.ot)} tone="orange" /><Summary label="Days recorded" value={String(rows.length)} tone="green" /></section><EmployeeReviews demo={demo} userId={session?.user.id ?? 'demo'} /></> }
+
+function EmployeeReviews({ demo, userId }: { demo: boolean; userId: string }) {
+  const [reviews, setReviews] = useState<Array<{ id: string; employee_id: string; rating: number; review_text: string; created_at: string }>>(demo ? [{ id: 'd1', employee_id: 'other', rating: 5, review_text: 'The new portal makes checking attendance much easier.', created_at: new Date().toISOString() }] : []); const [rating, setRating] = useState(5); const [text, setText] = useState(''); const [message, setMessage] = useState('')
+  useEffect(() => { if (!demo && supabase) supabase.from('ts_employee_reviews').select('id,employee_id,rating,review_text,created_at').order('created_at', { ascending: false }).limit(12).then(({ data }) => data && setReviews(data)) }, [demo])
+  async function submit(e: FormEvent) { e.preventDefault(); if (text.trim().length < 5) return; if (demo) { setReviews(r => [{ id: crypto.randomUUID(), employee_id: userId, rating, review_text: text.trim(), created_at: new Date().toISOString() }, ...r]); setText(''); setMessage('Demo review added locally.'); return } const { data, error } = await supabase!.from('ts_employee_reviews').insert({ rating, review_text: text.trim() }).select('id,employee_id,rating,review_text,created_at').single(); if (error) setMessage(`Could not post: ${error.message}`); else { setReviews(r => [data, ...r]); setText(''); setMessage('Thank you—your review is now visible inside the employee portal.') } }
+  const average = reviews.length ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length : 0
+  return <section className="reviews-card"><div className="reviews-heading"><div><p className="eyebrow dark">EMPLOYEE VOICE</p><h2>Share your portal experience</h2><p>Internal feedback—visible only to signed-in employees.</p></div><div className="rating-summary"><Stars value={Math.round(average)} /><strong>{average ? average.toFixed(1) : '—'}</strong><span>{reviews.length} review{reviews.length === 1 ? '' : 's'}</span></div></div><form className="review-form" onSubmit={submit}><div className="star-picker" aria-label="Rating">{[1,2,3,4,5].map(n => <button type="button" aria-label={`${n} stars`} className={n <= rating ? 'selected' : ''} onClick={() => setRating(n)} key={n}>★</button>)}</div><textarea value={text} onChange={e => setText(e.target.value)} maxLength={800} placeholder="What do you like, or what can we improve?" required /><button className="primary compact">Post review</button></form>{message && <p className="form-message">{message}</p>}<div className="review-grid">{reviews.map(r => <article key={r.id}><Stars value={r.rating} /><p>“{r.review_text}”</p><small>{r.employee_id === userId ? 'Your review' : 'Verified employee'} · {new Intl.DateTimeFormat('en', { dateStyle: 'medium' }).format(new Date(r.created_at))}</small></article>)}</div></section>
+}
+function Stars({ value }: { value: number }) { return <span className="stars" aria-label={`${value} out of 5 stars`}>{[1,2,3,4,5].map(n => <span className={n <= value ? 'filled' : ''} key={n}>★</span>)}</span> }
+
+function Timesheet({ profile, period, rows, totals, confirm, notice }: { profile: EmployeeProfile; period: { id: string; starts_on: string; ends_on: string; cutoff_at: string } | null; rows: TimesheetRow[]; totals: { basic: number; ot: number; total: number }; confirm: () => void; notice: string }) { return <><section className="period-bar"><div><span>PAY PERIOD</span><strong>{period ? `${formatShortDate(period.starts_on)} – ${formatShortDate(period.ends_on)}` : 'No open period'}</strong></div><div className="cutoff"><span>CUTOFF</span><strong>{period ? new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Riyadh' }).format(new Date(period.cutoff_at)) : '—'}</strong></div></section><section className="summary-grid"><Summary label="Basic hours" value={minutesToHours(totals.basic)} tone="navy" /><Summary label="Overtime" value={minutesToHours(totals.ot)} tone="orange" /><Summary label="Total hours" value={minutesToHours(totals.total)} tone="green" /></section><section className="table-card"><div className="table-heading"><div><h2>Attendance details</h2><p>{profile.work_category?.name ?? 'Unassigned'} · {minutesToHours(profile.work_category?.regular_minutes ?? 0)} regular hrs/day</p></div><span className="synced">● TimeStation · read-only</span></div><div className="table-scroll"><table><thead><tr><th>Date</th><th>AM In</th><th>AM Out</th><th>PM In</th><th>PM Out</th><th>Basic</th><th>OT</th><th>Total hrs</th><th>Status</th></tr></thead><tbody>{rows.map(row => <tr key={row.id}><td><strong>{formatDate(row.workDate)}</strong></td><td>{row.amIn ?? '—'}</td><td>{row.amOut ?? '—'}</td><td>{row.pmIn ?? '—'}</td><td>{row.pmOut ?? '—'}</td><td>{minutesToHours(row.basicMinutes)}</td><td className="ot">{minutesToHours(row.overtimeMinutes)}</td><td><strong>{minutesToHours(row.totalMinutes)}</strong></td><td><span className={`status ${row.status}`}>{row.status === 'complete' ? 'Complete' : row.status === 'incomplete' ? 'Needs review' : row.status}</span></td></tr>)}</tbody></table></div></section><section className="confirm-card"><div><h3>Everything looks correct?</h3><p>Confirm before cutoff. Correction requests remain tracked for authorized review.</p></div><button className="primary compact" onClick={confirm}>Confirm timesheet</button></section>{notice && <div className="toast" role="status">{notice}</div>}</> }
+
+function AdminPortal({ session }: { session: Session }) {
+  type Account = { user_id: string; employee_number: string; full_name: string; role: 'employee' | 'reviewer' | 'admin'; status: string; active: boolean; department_id: string | null; work_category_id: string | null }
+  const [accounts, setAccounts] = useState<Account[]>([]); const [departments, setDepartments] = useState<Array<{ id: string; name: string }>>([]); const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]); const [message, setMessage] = useState('')
+  async function load() { if (!supabase) return; const [a,d,c] = await Promise.all([supabase.from('ts_employee_profiles').select('user_id,employee_number,full_name,role,status,active,department_id,work_category_id').order('created_at', { ascending: false }), supabase.from('ts_departments').select('id,name').order('name'), supabase.from('ts_work_categories').select('id,name').order('regular_minutes')]); setAccounts((a.data ?? []) as Account[]); setDepartments(d.data ?? []); setCategories(c.data ?? []) }
+  useEffect(() => { load() }, [])
+  async function action(account: Account, actionName: 'approve' | 'reject' | 'deactivate') { const row = document.getElementById(`account-${account.user_id}`)!; const departmentId = (row.querySelector('[name=department]') as HTMLSelectElement)?.value; const workCategoryId = (row.querySelector('[name=category]') as HTMLSelectElement)?.value; const role = (row.querySelector('[name=role]') as HTMLSelectElement)?.value; const response = await fetch(`/api/admin/accounts/${account.user_id}`, { method: 'PATCH', headers: { authorization: `Bearer ${session.access_token}`, 'content-type': 'application/json' }, body: JSON.stringify({ action: actionName, departmentId, workCategoryId, role }) }); const result = await response.json() as { error?: string; message?: string }; setMessage(result.error ?? result.message ?? 'Done'); if (response.ok) load() }
+  async function remove(account: Account) { if (!window.confirm(`Permanently delete ${account.full_name}'s login and portal records? This cannot be undone.`)) return; const response = await fetch(`/api/admin/accounts/${account.user_id}`, { method: 'DELETE', headers: { authorization: `Bearer ${session.access_token}` } }); const result = await response.json() as { error?: string; message?: string }; setMessage(result.error ?? result.message ?? 'Done'); if (response.ok) load() }
+  return <section className="admin-card"><div className="admin-heading"><div><p className="eyebrow dark">ACCOUNT CONTROL</p><h2>Employee access</h2><p>Approve verified employees, assign access, or remove departed employees.</p></div><span className="pending-count">{accounts.filter(a => a.status === 'pending').length} pending</span></div>{message && <p className="form-message">{message}</p>}<div className="account-list">{accounts.map(account => <article id={`account-${account.user_id}`} key={account.user_id}><div className="account-person"><strong>{account.full_name}</strong><span>{account.employee_number}</span><span className={`status ${account.status}`}>{account.status}</span></div><select name="department" defaultValue={account.department_id ?? ''}><option value="" disabled>Department</option>{departments.map(d => <option value={d.id} key={d.id}>{d.name}</option>)}</select><select name="category" defaultValue={account.work_category_id ?? ''}><option value="" disabled>Category</option>{categories.map(c => <option value={c.id} key={c.id}>{c.name}</option>)}</select><select name="role" defaultValue={account.role}><option value="employee">Employee</option><option value="reviewer">Reviewer</option><option value="admin">Admin</option></select><div className="account-actions">{account.status === 'pending' && <><button className="approve" onClick={() => action(account, 'approve')}>Approve</button><button onClick={() => action(account, 'reject')}>Reject</button></>}{account.status === 'active' && <button onClick={() => action(account, 'deactivate')}>Mark exited</button>}<button className="danger" onClick={() => remove(account)}>Delete</button></div></article>)}</div></section>
 }
 
+function Summary({ label, value, tone }: { label: string; value: string; tone: string }) { return <article className={`summary ${tone}`}><span>{label}</span><strong>{value}</strong><small>this period</small></article> }
+function Corrections({ demo, reviewerId, canReview, corrections, setCorrections }: { demo: boolean; reviewerId: string | null; canReview: boolean; corrections: Correction[]; setCorrections: React.Dispatch<React.SetStateAction<Correction[]>> }) { const [date, setDate] = useState(new Date().toISOString().slice(0,10)); const [reason, setReason] = useState(''); async function submit(event: FormEvent) { event.preventDefault(); if (!reason.trim()) return; if (!demo && supabase) { const { error } = await supabase.from('ts_correction_requests').insert({ work_date: date, reason, requested_changes: {} }); if (error) return } setCorrections(current => [{ id: crypto.randomUUID(), date, reason, status: 'pending' }, ...current]); setReason('') } async function review(id: string, status: 'approved' | 'rejected') { if (!demo && supabase && reviewerId) { const { error } = await supabase.from('ts_correction_requests').update({ status, reviewer_id: reviewerId, reviewed_at: new Date().toISOString() }).eq('id', id).eq('status', 'pending'); if (error) return } setCorrections(current => current.map(item => item.id === id ? { ...item, status } : item)) } return <div className="correction-layout"><form className="correction-form" onSubmit={submit}><h2>Request a correction</h2><p className="muted">Describe the missing or incorrect time. An authorized reviewer must approve every change.</p><label>Work date<input type="date" value={date} onChange={e => setDate(e.target.value)} required /></label><label>What needs correction?<textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="Example: Missing PM out at 6:00 PM" required /></label><button className="primary">Submit request</button></form><section className="request-list"><h2>{canReview ? 'Requests to review' : 'Request history'}</h2>{corrections.length === 0 ? <p className="empty">No correction requests yet.</p> : corrections.map(item => <article key={item.id}><div><strong>{formatDate(item.date)}</strong><p>{item.reason}</p></div><div className="review-actions"><span className={`status ${item.status}`}>{item.status}</span>{canReview && item.status === 'pending' && <><button onClick={() => review(item.id, 'approved')}>Approve</button><button onClick={() => review(item.id, 'rejected')}>Reject</button></>}</div></article>)}</section></div> }
+
+function initials(name: string) { return name.split(' ').map(n => n[0]).slice(0,2).join('').toUpperCase() }
 function formatDate(value: string) { return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', weekday: 'short', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`)) }
 function formatShortDate(value: string) { return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`)) }
-
