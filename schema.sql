@@ -4,7 +4,8 @@
 begin;
 
 -- Enable pgcrypto for hashing/encryption helpers
-create extension if not exists "pgcrypto";
+create schema if not exists extensions;
+create extension if not exists "pgcrypto" with schema extensions;
 
 -- Utility trigger to keep `updated_at` fresh
 create or replace function public.set_updated_at()
@@ -51,6 +52,7 @@ create table if not exists public.employee_profiles (
 create index if not exists idx_employee_profiles_employee_number on public.employee_profiles (employee_number);
 create index if not exists idx_employee_profiles_email on public.employee_profiles (email);
 
+drop trigger if exists trg_employee_profiles_set_updated_at on public.employee_profiles;
 create trigger trg_employee_profiles_set_updated_at
   before update on public.employee_profiles
   for each row execute function public.set_updated_at();
@@ -73,6 +75,7 @@ create table if not exists public.admin_profiles (
 );
 
 -- link admin -> employee (if exists)
+alter table public.admin_profiles drop constraint if exists fk_admin_employee_number;
 alter table if exists public.admin_profiles
   add constraint fk_admin_employee_number
     foreign key (employee_number) references public.employee_profiles (employee_number) on delete set null;
@@ -80,6 +83,7 @@ alter table if exists public.admin_profiles
 create index if not exists idx_admin_profiles_employee_number on public.admin_profiles (employee_number);
 create index if not exists idx_admin_profiles_email on public.admin_profiles (email);
 
+drop trigger if exists trg_admin_profiles_set_updated_at on public.admin_profiles;
 create trigger trg_admin_profiles_set_updated_at
   before update on public.admin_profiles
   for each row execute function public.set_updated_at();
@@ -92,7 +96,7 @@ language sql
 stable
 as $$
   select coalesce(
-    (select (case when admin_password_hash is not null and crypt(provided_password, admin_password_hash) = admin_password_hash then true else false end)
+    (select (case when admin_password_hash is not null and extensions.crypt(provided_password, admin_password_hash) = admin_password_hash then true else false end)
      from public.admin_profiles ap
      where ap.email = identifier or ap.admin_number = identifier
      limit 1), false);
@@ -117,6 +121,7 @@ create table if not exists public.employee_timesheets (
 create index if not exists idx_employee_timesheets_employee_number on public.employee_timesheets (employee_number);
 create index if not exists idx_employee_timesheets_work_date on public.employee_timesheets (work_date);
 
+drop trigger if exists trg_employee_timesheets_set_updated_at on public.employee_timesheets;
 create trigger trg_employee_timesheets_set_updated_at
   before update on public.employee_timesheets
   for each row execute function public.set_updated_at();
@@ -143,6 +148,15 @@ create table if not exists public.employee_feedback (
 -- Useful indexes for lookups by employee_number
 create index if not exists idx_feedback_employee_number on public.employee_feedback (employee_number);
 
+revoke all on function public.verify_admin_password(text,text) from public, anon, authenticated;
+grant execute on function public.verify_admin_password(text,text) to service_role;
+alter table public.employee_profiles enable row level security;
+alter table public.admin_profiles enable row level security;
+alter table public.employee_timesheets enable row level security;
+alter table public.employee_import_files enable row level security;
+alter table public.employee_feedback enable row level security;
+grant all on public.employee_profiles, public.admin_profiles, public.employee_timesheets,
+  public.employee_import_files, public.employee_feedback to service_role;
 commit;
 
 -- Migration / usage notes:
@@ -153,4 +167,3 @@ commit;
 --    - sets `admin_password_enc = pgp_sym_encrypt(plaintext_password::text, 'REPLACE_WITH_EXPORT_KEY')` (replace the placeholder with a strong secret stored securely).
 -- 3) Do NOT commit the export key into source control. Store it as a Supabase secret/env var and use Edge Functions for exports.
 -- 4) For production, enable Row Level Security (RLS) and create granular policies for each table and the anon/public role.
-

@@ -153,7 +153,6 @@
         <div>
           <label for="employeeUploadMode">Upload Mode</label>
           <select id="employeeUploadMode">
-            <option value="replace">Replace existing employees (recommended)</option>
             <option value="merge">Merge/upsert by employee_number</option>
           </select>
         </div>
@@ -260,7 +259,9 @@
   <div id="oa-shared-footer"></div>
 
   <script src="./shared-layout.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./auth-config.js"></script>
+  <script src="./portal-client.js"></script>
+  <script src="./attendance-utils.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script>
     const SESSION_KEY = 'oa_supabase_session';
@@ -280,7 +281,7 @@
     }
 
     function getConfig() {
-      try { return JSON.parse(localStorage.getItem(CONFIG_KEY) || 'null'); } catch (_) { return null; }
+      return OAPortal.getConfig();
     }
 
     function loadConfigForm() {
@@ -303,7 +304,7 @@
       if (!cfg || !cfg.supabaseUrl || !cfg.supabaseAnonKey) {
         throw new Error('Supabase settings are missing. Please login through Admin Login page.');
       }
-      return window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+      return OAPortal;
     }
 
     function toNumberOrNull(value) {
@@ -358,37 +359,7 @@
       return raw;
     }
 
-    function parseCsv(text) {
-      const lines = text.replace(/\r/g, '').split('\n').filter(Boolean);
-      if (!lines.length) return [];
-      const headers = lines[0].split(',').map(function (h) { return h.trim(); });
-      const rows = [];
-
-      for (let i = 1; i < lines.length; i++) {
-        const cols = lines[i].split(',');
-        const row = {};
-        headers.forEach(function (h, idx) {
-          row[h] = (cols[idx] || '').trim();
-        });
-
-        const workDate = row.work_date ? String(row.work_date).trim() : '';
-        const clockIn = normalizeTimestamp(row.clock_in, workDate);
-        const clockOut = normalizeTimestamp(row.clock_out, workDate);
-        const inputHours = toNumberOrNull(row.hours);
-
-        rows.push({
-          employee_number: row.employee_number,
-          full_name: row.full_name || null,
-          work_date: workDate,
-          clock_in: clockIn,
-          clock_out: clockOut,
-          hours: inputHours == null ? calculateHours(clockIn, clockOut) : inputHours,
-          status: row.status || 'present',
-          notes: row.notes || null
-        });
-      }
-      return rows;
-    }
+    function parseCsv(text) { return OAAttendance.timesheets(text); }
 
     function renderPreview(rows) {
       const body = document.getElementById('previewBody');
@@ -423,25 +394,12 @@
         emergency_contact: String(row.emergency_contact || '').trim() || null,
         role: (role === 'admin' ? 'admin' : 'employee'),
         status: (status === 'disabled' ? 'disabled' : 'active'),
-        login_password: String(row.login_password || '').trim() || null
+        login_password: String(row.login_password || '') || null
       };
     }
 
     function parseEmployeeCsv(text) {
-      const lines = text.replace(/\r/g, '').split('\n').filter(Boolean);
-      if (!lines.length) return [];
-      const headers = lines[0].split(',').map(function (h) { return h.trim(); });
-      const rows = [];
-      for (let i = 1; i < lines.length; i++) {
-        const cols = lines[i].split(',');
-        const row = {};
-        headers.forEach(function (h, idx) { row[h] = (cols[idx] || '').trim(); });
-        const normalized = normalizeEmployeeRow(row);
-        if (normalized.employee_number && normalized.email && normalized.full_name) {
-          rows.push(normalized);
-        }
-      }
-      return rows;
+      return OAAttendance.parseCsv(text).map(normalizeEmployeeRow).filter(function (r) { return r.employee_number && r.email && r.full_name; });
     }
 
     function parseEmployeeWorkbook(file, arrayBuffer) {
@@ -552,15 +510,11 @@
       const supabase = getSupabaseOrThrow();
       const { data, error } = await supabase
         .from('employee_profiles')
-        .select('id,employee_number,email,mobile_number,full_name,department,designation,site_location,emergency_contact,role,status,login_password,admin_otp_enabled')
+        .select('id,employee_number,email,mobile_number,full_name,department,designation,site_location,emergency_contact,role,status,admin_otp_enabled')
         .order('employee_number', { ascending: true });
 
-      if (error) {
-        if (String(error.message || '').toLowerCase().indexOf('employee_profiles') >= 0) {
-          throw new Error('Table public.employee_profiles not found. Run schema.sql first.');
-        }
-        throw error;
-      }
+      if (error) throw error;
+
       cachedEmployees = data || [];
       filterEmployees();
       return cachedEmployees;
@@ -581,6 +535,7 @@
       const login_password = document.getElementById('newLoginPassword').value;
       const admin_password = document.getElementById('newAdminPassword').value;
 
+      if (role === 'admin' && !admin_password) throw new Error('An administrator password is required.');
       if (!employee_number || !email || !full_name) {
         throw new Error('Employee number, email and full name are required.');
       }
@@ -668,7 +623,7 @@
           emergency_contact: emergency_contact.trim() || null,
           role: role.trim().toLowerCase(),
           status: status.trim().toLowerCase(),
-          login_password: login_password.trim() || null
+          login_password: login_password || null
         })
         .eq('id', row.id);
 
@@ -682,7 +637,7 @@
             employee_number: row.employee_number,
             email: email.trim().toLowerCase(),
             full_name: full_name.trim(),
-            login_password: login_password.trim() || null,
+            login_password: login_password || null,
             admin_password: admin_password,
             status: status.trim().toLowerCase(),
             mobile_number: mobile_number.trim() || null
@@ -746,18 +701,8 @@
       if (!parsedEmployeeRows.length) throw new Error('No valid employee rows to upload.');
 
       const mode = document.getElementById('employeeUploadMode').value;
-      if (mode === 'replace') {
-        const confirmReplace = window.confirm('This will replace all existing employee-role profiles. Continue?');
-        if (!confirmReplace) return;
-
-        const { error: deleteError } = await supabase
-          .from('employee_profiles')
-          .delete()
-          .eq('role', 'employee');
-
-        if (deleteError) throw deleteError;
-      }
-
+      if (parsedEmployeeRows.some(r => r.role === 'admin')) throw new Error('Create or edit administrators individually. Employee imports must use the employee role.');
+      if (mode === 'replace') throw new Error('Use upsert to preserve existing accounts and passwords.');
       const { error: upsertError } = await supabase
         .from('employee_profiles')
         .upsert(parsedEmployeeRows, { onConflict: 'employee_number' });
@@ -771,8 +716,7 @@
         {
           file_name: file ? file.name : ('employee_import_' + Date.now()),
           row_count: parsedEmployeeRows.length,
-          mode: mode,
-          uploaded_by_employee_number: session.employeeNumber || null,
+          uploaded_by: session.employeeNumber || null,
           is_active: true
         }
       ]);
@@ -787,7 +731,7 @@
       const supabase = getSupabaseOrThrow();
       const { data, error } = await supabase
         .from('employee_import_files')
-        .select('id,file_name,row_count,mode,uploaded_at,is_active')
+        .select('id,file_name,row_count,uploaded_at,is_active')
         .order('uploaded_at', { ascending: false });
       if (error) throw error;
 
@@ -798,7 +742,7 @@
         tr.appendChild(rowTd(new Date(row.uploaded_at).toLocaleString()));
         tr.appendChild(rowTd(row.file_name));
         tr.appendChild(rowTd(row.row_count));
-        tr.appendChild(rowTd(row.mode));
+        tr.appendChild(rowTd(row.mode || 'import'));
         tr.appendChild(rowTd(row.is_active ? 'yes' : 'no'));
 
         const actionTd = document.createElement('td');
@@ -908,20 +852,6 @@
       setMessage('Feedback deleted.', false);
     }
 
-    async function ensureAdminOtpDefaults() {
-      const supabase = getSupabaseOrThrow();
-      const session = getSession() || {};
-      if (!session.employeeNumber) return;
-      const { error } = await supabase
-        .from('employee_profiles')
-        .update({ admin_otp_enabled: true })
-        .eq('employee_number', session.employeeNumber)
-        .eq('role', 'admin')
-        .is('admin_otp_enabled', null);
-      if (error) {
-      }
-    }
-
     document.getElementById('addEmployeeBtn').addEventListener('click', async function () {
       try {
         await addEmployee();
@@ -1016,8 +946,7 @@
     });
 
     document.getElementById('logoutBtn').addEventListener('click', function () {
-      localStorage.removeItem(SESSION_KEY);
-      window.location.href = './index.html';
+      OAPortal.logout('./index.html');
     });
 
     document.getElementById('saveConfigBtn').addEventListener('click', function () {
@@ -1035,13 +964,12 @@
 
     (async function init() {
       const session = getSession();
-      if (!session || session.role !== 'admin') {
+      if (!session || !session.sessionToken || session.role !== 'admin') {
         window.location.href = './login.html';
         return;
       }
       try {
         loadConfigForm();
-        await ensureAdminOtpDefaults();
         await loadEmployees();
         await loadImportLogs();
         await loadFeedback();

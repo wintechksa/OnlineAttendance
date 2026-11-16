@@ -13,7 +13,7 @@
 
   function getRole() {
     var session = getSession();
-    return session && session.role ? String(session.role).toLowerCase() : '';
+    return session && session.sessionToken && session.role ? String(session.role).toLowerCase() : '';
   }
 
   function getMainLinksByRole(role) {
@@ -179,6 +179,7 @@
     });
 
     logoutBtn.addEventListener('click', function () {
+      if (window.OAPortal) { OAPortal.logout(); return; }
       localStorage.removeItem(SESSION_KEY);
       window.location.href = './login.html';
     });
@@ -189,7 +190,7 @@
     return [
       '<footer class="oa-site-footer">',
       '  <div class="oa-footer-inner">',
-      '    <div>© ' + year + ' Online Attendance</div>',
+      '    <div>c ' + year + ' Online Attendance</div>',
       '    <div class="oa-footer-right"><i class="fa-regular fa-file-lines"></i>' + escapeHtml(pageTitle) + '</div>',
       '  </div>',
       '</footer>'
