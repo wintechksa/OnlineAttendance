@@ -21,8 +21,13 @@ export const onRequestPatch: PagesFunction<SecureEnv, 'userId'> = async ({ reque
     method: 'PATCH', headers: { prefer: 'return=representation' }, body: JSON.stringify(update),
   })
   if (!result.ok) return json({ error: 'Account could not be updated.' }, 502)
-  const rows = await result.json() as unknown[]
-  return rows.length ? json({ message: 'Account updated.' }) : json({ error: 'Account not found.' }, 404)
+  const rows = await result.json() as Record<string, unknown>[]
+  if (!rows.length) return json({ error: 'Account not found.' }, 404)
+  await serviceRequest(env, '/rest/v1/ts_audit_log', {
+    method: 'POST', headers: { prefer: 'return=minimal' },
+    body: JSON.stringify({ actor_id: admin.id, action: `ACCOUNT_${body.action!.toUpperCase()}`, entity_table: 'ts_employee_profiles', entity_id: userId, after_data: rows[0] }),
+  })
+  return json({ message: 'Account updated.' })
 }
 
 export const onRequestDelete: PagesFunction<SecureEnv, 'userId'> = async ({ request, env, params }) => {
@@ -31,7 +36,14 @@ export const onRequestDelete: PagesFunction<SecureEnv, 'userId'> = async ({ requ
   if (!admin) return json({ error: 'Forbidden' }, 403)
   const userId = String(params.userId)
   if (userId === admin.id) return json({ error: 'You cannot delete your own admin account.' }, 400)
+  const beforeResult = await serviceRequest(env, `/rest/v1/ts_employee_profiles?select=*&user_id=eq.${encodeURIComponent(userId)}&limit=1`)
+  const beforeRows = beforeResult.ok ? await beforeResult.json() as Record<string, unknown>[] : []
   const result = await serviceRequest(env, `/auth/v1/admin/users/${encodeURIComponent(userId)}`, { method: 'DELETE' })
   if (!result.ok) return json({ error: 'Account could not be deleted.' }, 502)
+  await serviceRequest(env, '/rest/v1/ts_audit_log', {
+    method: 'POST', headers: { prefer: 'return=minimal' },
+    body: JSON.stringify({ actor_id: admin.id, action: 'ACCOUNT_DELETE', entity_table: 'ts_employee_profiles', entity_id: userId, before_data: beforeRows[0] ?? null }),
+  })
   return json({ message: 'Account permanently deleted.' })
 }
+
